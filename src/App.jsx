@@ -1,11 +1,12 @@
 import React, { useState } from "react";
-import heic2any from "heic2any";
+import { heicTo } from "heic-to";
 
 export default function App() {
   const [files, setFiles] = useState([]);
   const [converted, setConverted] = useState([]);
   const [loading, setLoading] = useState(false);
   const [dragActive, setDragActive] = useState(false);
+  const [error, setError] = useState("");
 
   const processFiles = (fileList) => {
     const selected = Array.from(fileList).filter((file) =>
@@ -13,6 +14,7 @@ export default function App() {
     );
     setFiles(selected);
     setConverted([]);
+    setError("");
   };
 
   const handleFiles = (e) => {
@@ -42,25 +44,39 @@ export default function App() {
   };
 
   const convertImages = async () => {
+    if (!files.length) return;
+
     setLoading(true);
+    setConverted([]);
+    setError("");
+
     const results = [];
 
     for (const file of files) {
       try {
-        const blob = await heic2any({
-          blob: file,
-          toType: "image/jpeg",
+        const arrayBuffer = await file.arrayBuffer();
+
+        const convertedBlob = await heicTo({
+          blob: new Blob([arrayBuffer], { type: file.type || "image/heic" }),
+          type: "image/jpeg",
           quality: 0.9,
         });
 
-        const url = URL.createObjectURL(blob);
+        const finalBlob = Array.isArray(convertedBlob)
+          ? convertedBlob[0]
+          : convertedBlob;
+
+        const url = URL.createObjectURL(finalBlob);
 
         results.push({
           name: file.name.replace(/\.(heic|heif)$/i, ".jpg"),
           url,
         });
       } catch (err) {
-        console.error("Conversion failed:", err);
+        console.error("Conversion failed for:", file.name, err);
+        setError(
+          `One or more files failed to convert. Try a different HEIC file or browser.`
+        );
       }
     }
 
@@ -87,9 +103,7 @@ export default function App() {
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
       >
-        <p style={styles.dropText}>
-          Drag and drop your HEIC or HEIF files here
-        </p>
+        <p style={styles.dropText}>Drag and drop your HEIC or HEIF files here</p>
         <p style={styles.orText}>or</p>
 
         <label style={styles.uploadLabel}>
@@ -115,6 +129,8 @@ export default function App() {
       >
         {loading ? "Converting..." : "Convert Images"}
       </button>
+
+      {error && <p style={styles.error}>{error}</p>}
 
       <div style={styles.results}>
         {converted.map((file, i) => (
@@ -198,6 +214,11 @@ const styles = {
     cursor: "pointer",
     fontWeight: "bold",
     fontSize: "16px",
+    marginTop: "10px",
+  },
+  error: {
+    color: "#ff5c5c",
+    marginTop: "20px",
   },
   results: {
     marginTop: "35px",
