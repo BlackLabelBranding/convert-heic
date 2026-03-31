@@ -1,0 +1,20 @@
+{
+  "name": "HEIC to JPG Converter",
+  "short_name": "HEIC Tool",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#000000",
+  "theme_color": "#000000",
+  "icons": [
+    {
+      "src": "https://xopcttkrmjvwdddawdaa.supabase.co/storage/v1/object/public/Logos/HEICtoJPEG.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "https://xopcttkrmjvwdddawdaa.supabase.co/storage/v1/object/public/Logos/HEICtoJPEG.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
