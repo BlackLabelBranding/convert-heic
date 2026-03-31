@@ -17,30 +17,64 @@ export default function App() {
     setError("");
   };
 
-  const handleFiles = (e) => {
-    processFiles(e.target.files);
-  };
+  const handleFiles = (e) => processFiles(e.target.files);
 
   const handleDragOver = (e) => {
     e.preventDefault();
-    e.stopPropagation();
     setDragActive(true);
   };
 
   const handleDragLeave = (e) => {
     e.preventDefault();
-    e.stopPropagation();
     setDragActive(false);
   };
 
   const handleDrop = (e) => {
     e.preventDefault();
-    e.stopPropagation();
     setDragActive(false);
-
-    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+    if (e.dataTransfer.files?.length) {
       processFiles(e.dataTransfer.files);
     }
+  };
+
+  const describeError = (err) => {
+    try {
+      if (!err) return "Unknown conversion error.";
+      if (err instanceof Error) return err.message;
+      if (typeof err === "string") return err;
+      return JSON.stringify(err, Object.getOwnPropertyNames(err));
+    } catch {
+      return "Unknown conversion error.";
+    }
+  };
+
+  const convertOneFile = async (file) => {
+    const inputType =
+      file.type && file.type !== ""
+        ? file.type
+        : /\.heif$/i.test(file.name)
+        ? "image/heif"
+        : "image/heic";
+
+    const convertedBlob = await heicTo({
+      blob: file,
+      type: "image/jpeg",
+      quality: 0.92,
+    });
+
+    const finalBlob = Array.isArray(convertedBlob)
+      ? convertedBlob[0]
+      : convertedBlob;
+
+    if (!(finalBlob instanceof Blob)) {
+      throw new Error("Converter did not return a valid file.");
+    }
+
+    return new File(
+      [finalBlob],
+      file.name.replace(/\.(heic|heif)$/i, ".jpg"),
+      { type: "image/jpeg" }
+    );
   };
 
   const convertImages = async () => {
@@ -51,36 +85,32 @@ export default function App() {
     setError("");
 
     const results = [];
+    const failures = [];
 
     for (const file of files) {
       try {
-        const arrayBuffer = await file.arrayBuffer();
-
-        const convertedBlob = await heicTo({
-          blob: new Blob([arrayBuffer], { type: file.type || "image/heic" }),
-          type: "image/jpeg",
-          quality: 0.9,
-        });
-
-        const finalBlob = Array.isArray(convertedBlob)
-          ? convertedBlob[0]
-          : convertedBlob;
-
-        const url = URL.createObjectURL(finalBlob);
+        const jpgFile = await convertOneFile(file);
+        const url = URL.createObjectURL(jpgFile);
 
         results.push({
-          name: file.name.replace(/\.(heic|heif)$/i, ".jpg"),
+          name: jpgFile.name,
           url,
         });
       } catch (err) {
-        console.error("Conversion failed for:", file.name, err);
-        setError(
-          `One or more files failed to convert. Try a different HEIC file or browser.`
-        );
+        const msg = describeError(err);
+        console.error("Conversion failed for", file.name, err, msg);
+        failures.push(`${file.name}: ${msg}`);
       }
     }
 
     setConverted(results);
+
+    if (failures.length) {
+      setError(
+        `Some files failed to convert.\n${failures.join("\n")}\n\nBest results usually come from a standard still HEIC photo, not a Live Photo export.`
+      );
+    }
+
     setLoading(false);
   };
 
@@ -130,7 +160,7 @@ export default function App() {
         {loading ? "Converting..." : "Convert Images"}
       </button>
 
-      {error && <p style={styles.error}>{error}</p>}
+      {error && <pre style={styles.error}>{error}</pre>}
 
       <div style={styles.results}>
         {converted.map((file, i) => (
@@ -217,8 +247,13 @@ const styles = {
     marginTop: "10px",
   },
   error: {
-    color: "#ff5c5c",
+    color: "#ff6b6b",
     marginTop: "20px",
+    whiteSpace: "pre-wrap",
+    maxWidth: "800px",
+    marginLeft: "auto",
+    marginRight: "auto",
+    textAlign: "left",
   },
   results: {
     marginTop: "35px",
