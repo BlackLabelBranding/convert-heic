@@ -26,7 +26,7 @@ export default function App() {
         const url = URL.createObjectURL(blob);
 
         results.push({
-          name: file.name.replace(".heic", ".jpg"),
+          name: file.name.replace(/\.(heic|heif)$/i, ".jpg"),
           url,
         });
       } catch (err) {
