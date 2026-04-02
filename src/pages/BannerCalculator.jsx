@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 
-export default function App() {
+export default function BannerCalculator() {
   const [width, setWidth] = useState("5");
   const [height, setHeight] = useState("8");
   const [quantity, setQuantity] = useState("1");
@@ -11,11 +12,12 @@ export default function App() {
   const [rush, setRush] = useState(false);
 
   const tools = [
-    { name: "Banner Calculator", href: "#", active: true },
-    { name: "Image Resize", href: "#", active: false },
-    { name: "PDF Tools", href: "#", active: false },
-    { name: "Background Remove", href: "#", active: false },
-    { name: "More Tools", href: "#", active: false },
+    { name: "Home", href: "/", active: false },
+    { name: "HEIC to JPG", href: "/heic-to-jpg", active: false },
+    { name: "Banner Calculator", href: "/banner-calculator", active: true },
+    { name: "Image Resize", href: "#", active: false, disabled: true },
+    { name: "PDF Tools", href: "#", active: false, disabled: true },
+    { name: "Background Remove", href: "#", active: false, disabled: true },
   ];
 
   const materials = {
@@ -127,18 +129,31 @@ export default function App() {
       <nav style={styles.nav}>
         <div style={styles.navBrand}>Black Label Tools</div>
         <div style={styles.navLinks}>
-          {tools.map((tool) => (
-            <a
-              key={tool.name}
-              href={tool.href}
-              style={{
-                ...styles.navLink,
-                ...(tool.active ? styles.navLinkActive : {}),
-              }}
-            >
-              {tool.name}
-            </a>
-          ))}
+          {tools.map((tool) =>
+            tool.disabled ? (
+              <span
+                key={tool.name}
+                style={{
+                  ...styles.navLink,
+                  ...(tool.active ? styles.navLinkActive : {}),
+                  ...styles.navLinkDisabled,
+                }}
+              >
+                {tool.name}
+              </span>
+            ) : (
+              <Link
+                key={tool.name}
+                to={tool.href}
+                style={{
+                  ...styles.navLink,
+                  ...(tool.active ? styles.navLinkActive : {}),
+                }}
+              >
+                {tool.name}
+              </Link>
+            )
+          )}
         </div>
       </nav>
 
@@ -151,7 +166,7 @@ export default function App() {
 
         <h1 style={styles.title}>Black Label Banner Calculator</h1>
         <p style={styles.subtitle}>
-          Live banner pricing with quantity tier logic, material switching,
+          Live pricing for banner quotes with material switching, quantity tiers,
           add-ons, rush pricing, and margin visibility.
         </p>
 
@@ -238,6 +253,7 @@ export default function App() {
 
             <div style={styles.toggleRow}>
               <button
+                type="button"
                 onClick={() => setWindSlits(!windSlits)}
                 style={{
                   ...styles.toggleButton,
@@ -249,6 +265,7 @@ export default function App() {
               </button>
 
               <button
+                type="button"
                 onClick={() => setRush(!rush)}
                 style={{
                   ...styles.toggleButton,
@@ -424,6 +441,10 @@ const styles = {
     background: "#39ff14",
     border: "1px solid #39ff14",
     fontWeight: "bold",
+  },
+  navLinkDisabled: {
+    opacity: 0.45,
+    cursor: "not-allowed",
   },
   container: {
     maxWidth: "1180px",
