@@ -1,61 +1,65 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState } from "react";
 
-const MATERIALS = {
-  '13oz Single-Sided': {
-    label: '13oz Single-Sided',
-    costSmall: 1.25,
-    costLarge: 1.0,
-    margin: 0.6,
-  },
-  '15oz Single-Sided': {
-    label: '15oz Single-Sided',
-    costSmall: 1.75,
-    costLarge: 1.25,
-    margin: 0.625,
-  },
-  '18oz Single-Sided': {
-    label: '18oz Single-Sided',
-    costSmall: 2.25,
-    costLarge: 1.75,
-    margin: 0.65,
-  },
-  '18oz Double-Sided': {
-    label: '18oz Double-Sided',
-    costSmall: 4.25,
-    costLarge: 3.25,
-    margin: 0.7,
-  },
-};
-
-const formatCurrency = (value) =>
-  new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(Number.isFinite(value) ? value : 0);
-
-const formatPercent = (value) => `${(value * 100).toFixed(1)}%`;
-
-const parsePositive = (value) => {
-  const parsed = Number(value);
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
-};
-
-const parseNonNegative = (value) => {
-  const parsed = Number(value);
-  return Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
-};
-
-export default function BannerCalculator() {
-  const [width, setWidth] = useState('5');
-  const [height, setHeight] = useState('8');
-  const [quantity, setQuantity] = useState('1');
-  const [material, setMaterial] = useState('15oz Single-Sided');
-  const [polePocketLf, setPolePocketLf] = useState('0');
-  const [ropeLf, setRopeLf] = useState('0');
+export default function App() {
+  const [width, setWidth] = useState("5");
+  const [height, setHeight] = useState("8");
+  const [quantity, setQuantity] = useState("1");
+  const [material, setMaterial] = useState("15oz Single-Sided");
+  const [polePocketLf, setPolePocketLf] = useState("0");
+  const [ropeLf, setRopeLf] = useState("0");
   const [windSlits, setWindSlits] = useState(false);
   const [rush, setRush] = useState(false);
+
+  const tools = [
+    { name: "Banner Calculator", href: "#", active: true },
+    { name: "Image Resize", href: "#", active: false },
+    { name: "PDF Tools", href: "#", active: false },
+    { name: "Background Remove", href: "#", active: false },
+    { name: "More Tools", href: "#", active: false },
+  ];
+
+  const materials = {
+    "13oz Single-Sided": {
+      costSmall: 1.25,
+      costLarge: 1.0,
+      margin: 0.6,
+    },
+    "15oz Single-Sided": {
+      costSmall: 1.75,
+      costLarge: 1.25,
+      margin: 0.625,
+    },
+    "18oz Single-Sided": {
+      costSmall: 2.25,
+      costLarge: 1.75,
+      margin: 0.65,
+    },
+    "18oz Double-Sided": {
+      costSmall: 4.25,
+      costLarge: 3.25,
+      margin: 0.7,
+    },
+  };
+
+  const formatCurrency = (value) =>
+    new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: "USD",
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(Number.isFinite(value) ? value : 0);
+
+  const formatPercent = (value) => `${(value * 100).toFixed(1)}%`;
+
+  const parsePositive = (value) => {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+  };
+
+  const parseNonNegative = (value) => {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
+  };
 
   const calculations = useMemo(() => {
     const widthNum = parsePositive(width);
@@ -66,8 +70,9 @@ export default function BannerCalculator() {
 
     const sqFtEach = widthNum * heightNum;
     const totalSqFt = sqFtEach * quantityNum;
-    const tier = quantityNum >= 1000 ? '1000+' : '1-999';
-    const materialConfig = MATERIALS[material];
+    const tier = quantityNum >= 1000 ? "1000+" : "1-999";
+
+    const materialConfig = materials[material];
     const baseCostPerSqFt =
       quantityNum >= 1000 ? materialConfig.costLarge : materialConfig.costSmall;
     const retailPerSqFt = baseCostPerSqFt / (1 - materialConfig.margin);
@@ -115,255 +120,453 @@ export default function BannerCalculator() {
       grossMargin,
       unitPrice,
     };
-  }, [height, material, polePocketLf, quantity, ropeLf, rush, width, windSlits]);
+  }, [width, height, quantity, material, polePocketLf, ropeLf, windSlits, rush]);
 
   return (
-    <div className="min-h-screen bg-slate-100 p-4 md:p-8">
-      <div className="mx-auto max-w-7xl rounded-3xl bg-white shadow-xl ring-1 ring-slate-200">
-        <div className="rounded-t-3xl bg-slate-900 px-6 py-5 text-white md:px-8">
-          <p className="text-sm font-medium uppercase tracking-[0.2em] text-slate-300">
-            Black Label Tools
-          </p>
-          <div className="mt-2 flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
-            <div>
-              <h1 className="text-3xl font-bold tracking-tight">
-                Banner Pricing Calculator
-              </h1>
-              <p className="mt-1 text-sm text-slate-300">
-                Live pricing for banner quotes with material switching, quantity tiers,
-                add-ons, and margin visibility.
-              </p>
-            </div>
-            <div className="rounded-2xl bg-white/10 px-4 py-3 text-sm">
-              <div className="text-slate-300">Active Pricing Tier</div>
-              <div className="text-lg font-semibold text-white">
-                {calculations.tier}
-              </div>
-            </div>
-          </div>
+    <div style={styles.page}>
+      <nav style={styles.nav}>
+        <div style={styles.navBrand}>Black Label Tools</div>
+        <div style={styles.navLinks}>
+          {tools.map((tool) => (
+            <a
+              key={tool.name}
+              href={tool.href}
+              style={{
+                ...styles.navLink,
+                ...(tool.active ? styles.navLinkActive : {}),
+              }}
+            >
+              {tool.name}
+            </a>
+          ))}
         </div>
+      </nav>
 
-        <div className="grid gap-6 p-6 md:grid-cols-[1.1fr_0.9fr] md:p-8">
-          <section className="rounded-3xl border border-slate-200 bg-slate-50 p-5 shadow-sm">
-            <div className="mb-5">
-              <h2 className="text-xl font-semibold text-slate-900">Quote Inputs</h2>
-              <p className="text-sm text-slate-500">
-                Change dimensions, material, quantity, and finishing options.
-              </p>
-            </div>
+      <div style={styles.container}>
+        <img
+          src="https://xopcttkrmjvwdddawdaa.supabase.co/storage/v1/object/public/Logos/blacklabellogoog.png"
+          alt="Black Label Branding"
+          style={styles.logo}
+        />
 
-            <div className="grid gap-4 md:grid-cols-2">
-              <label className="block">
-                <span className="mb-1.5 block text-sm font-medium text-slate-700">
-                  Width (ft)
-                </span>
+        <h1 style={styles.title}>Black Label Banner Calculator</h1>
+        <p style={styles.subtitle}>
+          Live banner pricing with quantity tier logic, material switching,
+          add-ons, rush pricing, and margin visibility.
+        </p>
+
+        <div style={styles.calculatorGrid}>
+          <div style={styles.panel}>
+            <h2 style={styles.panelTitle}>Quote Inputs</h2>
+
+            <div style={styles.formGrid}>
+              <div style={styles.field}>
+                <label style={styles.label}>Width (ft)</label>
                 <input
                   type="number"
                   min="0"
                   step="0.01"
                   value={width}
                   onChange={(e) => setWidth(e.target.value)}
-                  className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 outline-none transition focus:border-slate-900"
+                  style={styles.input}
                 />
-              </label>
+              </div>
 
-              <label className="block">
-                <span className="mb-1.5 block text-sm font-medium text-slate-700">
-                  Height (ft)
-                </span>
+              <div style={styles.field}>
+                <label style={styles.label}>Height (ft)</label>
                 <input
                   type="number"
                   min="0"
                   step="0.01"
                   value={height}
                   onChange={(e) => setHeight(e.target.value)}
-                  className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 outline-none transition focus:border-slate-900"
+                  style={styles.input}
                 />
-              </label>
+              </div>
 
-              <label className="block">
-                <span className="mb-1.5 block text-sm font-medium text-slate-700">
-                  Quantity
-                </span>
+              <div style={styles.field}>
+                <label style={styles.label}>Quantity</label>
                 <input
                   type="number"
                   min="1"
                   step="1"
                   value={quantity}
                   onChange={(e) => setQuantity(e.target.value)}
-                  className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 outline-none transition focus:border-slate-900"
+                  style={styles.input}
                 />
-              </label>
+              </div>
 
-              <label className="block">
-                <span className="mb-1.5 block text-sm font-medium text-slate-700">
-                  Material
-                </span>
+              <div style={styles.field}>
+                <label style={styles.label}>Material</label>
                 <select
                   value={material}
                   onChange={(e) => setMaterial(e.target.value)}
-                  className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 outline-none transition focus:border-slate-900"
+                  style={styles.input}
                 >
-                  {Object.keys(MATERIALS).map((key) => (
+                  {Object.keys(materials).map((key) => (
                     <option key={key} value={key}>
-                      {MATERIALS[key].label}
+                      {key}
                     </option>
                   ))}
                 </select>
-              </label>
+              </div>
 
-              <label className="block">
-                <span className="mb-1.5 block text-sm font-medium text-slate-700">
-                  Pole Pocket Linear Feet
-                </span>
+              <div style={styles.field}>
+                <label style={styles.label}>Pole Pocket Linear Feet</label>
                 <input
                   type="number"
                   min="0"
                   step="0.01"
                   value={polePocketLf}
                   onChange={(e) => setPolePocketLf(e.target.value)}
-                  className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 outline-none transition focus:border-slate-900"
+                  style={styles.input}
                 />
-              </label>
+              </div>
 
-              <label className="block">
-                <span className="mb-1.5 block text-sm font-medium text-slate-700">
-                  Rope Linear Feet
-                </span>
+              <div style={styles.field}>
+                <label style={styles.label}>Rope Linear Feet</label>
                 <input
                   type="number"
                   min="0"
                   step="0.01"
                   value={ropeLf}
                   onChange={(e) => setRopeLf(e.target.value)}
-                  className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 outline-none transition focus:border-slate-900"
+                  style={styles.input}
                 />
-              </label>
+              </div>
             </div>
 
-            <div className="mt-5 grid gap-3 md:grid-cols-2">
+            <div style={styles.toggleRow}>
               <button
-                type="button"
-                onClick={() => setWindSlits((prev) => !prev)}
-                className={`rounded-2xl border px-4 py-3 text-left transition ${
-                  windSlits
-                    ? 'border-slate-900 bg-slate-900 text-white'
-                    : 'border-slate-300 bg-white text-slate-900'
-                }`}
+                onClick={() => setWindSlits(!windSlits)}
+                style={{
+                  ...styles.toggleButton,
+                  ...(windSlits ? styles.toggleButtonActive : {}),
+                }}
               >
-                <div className="text-sm font-semibold">Wind Slits</div>
-                <div className="mt-1 text-xs opacity-80">
-                  Retail priced at $1.25 / sq ft
-                </div>
+                Wind Slits
+                <span style={styles.toggleSubtext}>Retail: $1.25 / sq ft</span>
               </button>
 
               <button
-                type="button"
-                onClick={() => setRush((prev) => !prev)}
-                className={`rounded-2xl border px-4 py-3 text-left transition ${
-                  rush
-                    ? 'border-amber-500 bg-amber-500 text-slate-950'
-                    : 'border-slate-300 bg-white text-slate-900'
-                }`}
+                onClick={() => setRush(!rush)}
+                style={{
+                  ...styles.toggleButton,
+                  ...(rush ? styles.toggleButtonRush : {}),
+                }}
               >
-                <div className="text-sm font-semibold">Rush Turnaround</div>
-                <div className="mt-1 text-xs opacity-80">
+                Rush
+                <span style={styles.toggleSubtext}>
                   Adds 100% of subtotal retail
-                </div>
+                </span>
               </button>
             </div>
-          </section>
+          </div>
 
-          <section className="space-y-6">
-            <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-              <h2 className="text-xl font-semibold text-slate-900">Order Metrics</h2>
-              <div className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
-                <div className="text-slate-500">Banner Sq Ft Each</div>
-                <div className="text-right font-semibold text-slate-900">
+          <div style={styles.summaryColumn}>
+            <div style={styles.panel}>
+              <h2 style={styles.panelTitle}>Order Metrics</h2>
+
+              <div style={styles.metricRow}>
+                <span style={styles.metricLabel}>Active Pricing Tier</span>
+                <span style={styles.metricValue}>{calculations.tier}</span>
+              </div>
+              <div style={styles.metricRow}>
+                <span style={styles.metricLabel}>Banner Sq Ft Each</span>
+                <span style={styles.metricValue}>
                   {calculations.sqFtEach.toFixed(2)}
-                </div>
-
-                <div className="text-slate-500">Total Sq Ft</div>
-                <div className="text-right font-semibold text-slate-900">
+                </span>
+              </div>
+              <div style={styles.metricRow}>
+                <span style={styles.metricLabel}>Total Sq Ft</span>
+                <span style={styles.metricValue}>
                   {calculations.totalSqFt.toFixed(2)}
-                </div>
-
-                <div className="text-slate-500">Base Cost / Sq Ft</div>
-                <div className="text-right font-semibold text-slate-900">
+                </span>
+              </div>
+              <div style={styles.metricRow}>
+                <span style={styles.metricLabel}>Base Cost / Sq Ft</span>
+                <span style={styles.metricValue}>
                   {formatCurrency(calculations.baseCostPerSqFt)}
-                </div>
-
-                <div className="text-slate-500">Retail / Sq Ft</div>
-                <div className="text-right font-semibold text-slate-900">
+                </span>
+              </div>
+              <div style={styles.metricRow}>
+                <span style={styles.metricLabel}>Retail / Sq Ft</span>
+                <span style={styles.metricValue}>
                   {formatCurrency(calculations.retailPerSqFt)}
-                </div>
-
-                <div className="text-slate-500">Base Material Cost</div>
-                <div className="text-right font-semibold text-slate-900">
+                </span>
+              </div>
+              <div style={styles.metricRow}>
+                <span style={styles.metricLabel}>Base Material Cost</span>
+                <span style={styles.metricValue}>
                   {formatCurrency(calculations.baseMaterialCost)}
-                </div>
-
-                <div className="text-slate-500">Retail Material Price</div>
-                <div className="text-right font-semibold text-slate-900">
+                </span>
+              </div>
+              <div style={styles.metricRow}>
+                <span style={styles.metricLabel}>Retail Material Price</span>
+                <span style={styles.metricValue}>
                   {formatCurrency(calculations.retailMaterialPrice)}
-                </div>
+                </span>
               </div>
             </div>
 
-            <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-              <h2 className="text-xl font-semibold text-slate-900">Add-Ons and Totals</h2>
-              <div className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
-                <div className="text-slate-500">Pole Pocket Retail</div>
-                <div className="text-right font-semibold text-slate-900">
+            <div style={styles.panel}>
+              <h2 style={styles.panelTitle}>Totals</h2>
+
+              <div style={styles.metricRow}>
+                <span style={styles.metricLabel}>Pole Pocket Retail</span>
+                <span style={styles.metricValue}>
                   {formatCurrency(calculations.polePocketRetail)}
-                </div>
-
-                <div className="text-slate-500">Rope Retail</div>
-                <div className="text-right font-semibold text-slate-900">
+                </span>
+              </div>
+              <div style={styles.metricRow}>
+                <span style={styles.metricLabel}>Rope Retail</span>
+                <span style={styles.metricValue}>
                   {formatCurrency(calculations.ropeRetail)}
-                </div>
-
-                <div className="text-slate-500">Wind Slits Retail</div>
-                <div className="text-right font-semibold text-slate-900">
+                </span>
+              </div>
+              <div style={styles.metricRow}>
+                <span style={styles.metricLabel}>Wind Slits Retail</span>
+                <span style={styles.metricValue}>
                   {formatCurrency(calculations.windSlitsRetail)}
-                </div>
-
-                <div className="text-slate-500">Rush Surcharge</div>
-                <div className="text-right font-semibold text-slate-900">
+                </span>
+              </div>
+              <div style={styles.metricRow}>
+                <span style={styles.metricLabel}>Rush Surcharge</span>
+                <span style={styles.metricValue}>
                   {formatCurrency(calculations.rushSurcharge)}
-                </div>
+                </span>
+              </div>
 
-                <div className="col-span-2 my-1 h-px bg-slate-200" />
+              <div style={styles.divider} />
 
-                <div className="text-slate-700">Total Retail</div>
-                <div className="text-right text-lg font-bold text-slate-950">
+              <div style={styles.metricRow}>
+                <span style={styles.totalLabel}>Total Retail</span>
+                <span style={styles.totalValue}>
                   {formatCurrency(calculations.totalRetail)}
-                </div>
-
-                <div className="text-slate-500">Unit Price</div>
-                <div className="text-right font-semibold text-slate-900">
+                </span>
+              </div>
+              <div style={styles.metricRow}>
+                <span style={styles.metricLabel}>Unit Price</span>
+                <span style={styles.metricValue}>
                   {formatCurrency(calculations.unitPrice)}
-                </div>
-
-                <div className="text-slate-500">Total Internal Cost</div>
-                <div className="text-right font-semibold text-slate-900">
+                </span>
+              </div>
+              <div style={styles.metricRow}>
+                <span style={styles.metricLabel}>Total Internal Cost</span>
+                <span style={styles.metricValue}>
                   {formatCurrency(calculations.totalInternalCost)}
-                </div>
-
-                <div className="text-slate-500">Gross Profit</div>
-                <div className="text-right font-semibold text-emerald-700">
+                </span>
+              </div>
+              <div style={styles.metricRow}>
+                <span style={styles.metricLabel}>Gross Profit</span>
+                <span style={styles.profitValue}>
                   {formatCurrency(calculations.grossProfit)}
-                </div>
-
-                <div className="text-slate-500">Gross Margin</div>
-                <div className="text-right font-semibold text-emerald-700">
+                </span>
+              </div>
+              <div style={styles.metricRow}>
+                <span style={styles.metricLabel}>Gross Margin</span>
+                <span style={styles.profitValue}>
                   {formatPercent(calculations.grossMargin)}
-                </div>
+                </span>
               </div>
             </div>
-          </section>
+          </div>
         </div>
       </div>
     </div>
   );
 }
+
+const styles = {
+  page: {
+    minHeight: "100vh",
+    background: "#000",
+    color: "#fff",
+    fontFamily: "Arial, sans-serif",
+  },
+  nav: {
+    position: "sticky",
+    top: 0,
+    zIndex: 10,
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: "20px",
+    padding: "18px 24px",
+    borderBottom: "1px solid #1f1f1f",
+    background: "rgba(0,0,0,0.92)",
+    backdropFilter: "blur(10px)",
+  },
+  navBrand: {
+    fontSize: "18px",
+    fontWeight: "bold",
+    color: "#39ff14",
+    whiteSpace: "nowrap",
+  },
+  navLinks: {
+    display: "flex",
+    gap: "10px",
+    flexWrap: "wrap",
+    justifyContent: "flex-end",
+  },
+  navLink: {
+    color: "#ccc",
+    textDecoration: "none",
+    padding: "8px 14px",
+    borderRadius: "999px",
+    border: "1px solid #222",
+    background: "#111",
+    fontSize: "14px",
+    transition: "0.2s ease",
+  },
+  navLinkActive: {
+    color: "#000",
+    background: "#39ff14",
+    border: "1px solid #39ff14",
+    fontWeight: "bold",
+  },
+  container: {
+    maxWidth: "1180px",
+    margin: "0 auto",
+    padding: "40px 20px 60px",
+    textAlign: "center",
+  },
+  logo: {
+    display: "block",
+    margin: "0 auto 18px auto",
+    maxWidth: "220px",
+    width: "100%",
+    height: "auto",
+  },
+  title: {
+    fontSize: "34px",
+    marginBottom: "10px",
+  },
+  subtitle: {
+    color: "#b3b3b3",
+    marginBottom: "30px",
+    fontSize: "16px",
+    maxWidth: "760px",
+    marginLeft: "auto",
+    marginRight: "auto",
+  },
+  calculatorGrid: {
+    display: "grid",
+    gridTemplateColumns: "1.15fr 0.85fr",
+    gap: "20px",
+    alignItems: "start",
+  },
+  panel: {
+    background: "#111",
+    border: "1px solid #222",
+    borderRadius: "20px",
+    padding: "24px",
+    textAlign: "left",
+  },
+  panelTitle: {
+    fontSize: "22px",
+    marginTop: 0,
+    marginBottom: "20px",
+  },
+  formGrid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+    gap: "16px",
+  },
+  field: {
+    display: "flex",
+    flexDirection: "column",
+  },
+  label: {
+    fontSize: "14px",
+    color: "#ccc",
+    marginBottom: "8px",
+  },
+  input: {
+    padding: "12px 14px",
+    borderRadius: "12px",
+    border: "1px solid #333",
+    background: "#000",
+    color: "#fff",
+    fontSize: "15px",
+    outline: "none",
+  },
+  toggleRow: {
+    display: "grid",
+    gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+    gap: "14px",
+    marginTop: "18px",
+  },
+  toggleButton: {
+    background: "#000",
+    color: "#fff",
+    border: "1px solid #333",
+    borderRadius: "14px",
+    padding: "14px",
+    cursor: "pointer",
+    textAlign: "left",
+    fontWeight: "bold",
+    display: "flex",
+    flexDirection: "column",
+    gap: "6px",
+  },
+  toggleButtonActive: {
+    background: "#39ff14",
+    color: "#000",
+    border: "1px solid #39ff14",
+  },
+  toggleButtonRush: {
+    background: "#facc15",
+    color: "#000",
+    border: "1px solid #facc15",
+  },
+  toggleSubtext: {
+    fontWeight: "normal",
+    fontSize: "12px",
+    opacity: 0.8,
+  },
+  summaryColumn: {
+    display: "flex",
+    flexDirection: "column",
+    gap: "20px",
+  },
+  metricRow: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: "12px",
+    padding: "10px 0",
+    borderBottom: "1px solid #1e1e1e",
+  },
+  metricLabel: {
+    color: "#b3b3b3",
+    fontSize: "14px",
+  },
+  metricValue: {
+    color: "#fff",
+    fontWeight: "bold",
+    fontSize: "15px",
+    textAlign: "right",
+  },
+  divider: {
+    height: "1px",
+    background: "#333",
+    margin: "12px 0",
+  },
+  totalLabel: {
+    color: "#fff",
+    fontSize: "16px",
+    fontWeight: "bold",
+  },
+  totalValue: {
+    color: "#39ff14",
+    fontSize: "22px",
+    fontWeight: "bold",
+  },
+  profitValue: {
+    color: "#39ff14",
+    fontWeight: "bold",
+    fontSize: "15px",
+    textAlign: "right",
+  },
+};
