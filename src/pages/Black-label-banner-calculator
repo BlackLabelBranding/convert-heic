@@ -1,0 +1,70 @@
+export default function BlackLabelBannerCalculator() {
+  const materials = [
+    { name: '13oz Single-Sided', costSmall: 1.25, costLarge: 1.0, margin: 0.6 },
+    { name: '15oz Single-Sided', costSmall: 1.75, costLarge: 1.25, margin: 0.625 },
+    { name: '18oz Single-Sided', costSmall: 2.25, costLarge: 1.75, margin: 0.65 },
+    { name: '18oz Double-Sided', costSmall: 4.25, costLarge: 3.25, margin: 0.7 },
+  ];
+
+  return (
+    <div className="min-h-screen bg-slate-50 p-6">
+      <div className="mx-auto max-w-5xl rounded-3xl bg-white p-6 shadow-lg">
+        <div className="mb-6">
+          <h1 className="text-2xl font-bold tracking-tight">Black Label Banner Calculator</h1>
+          <p className="mt-2 text-sm text-slate-600">
+            Starter UI for Vercel/Next.js. This version is ready to wire into your Black Label Tools app.
+          </p>
+        </div>
+
+        <div className="grid gap-6 md:grid-cols-2">
+          <div className="rounded-2xl border border-slate-200 p-5">
+            <h2 className="mb-4 text-lg font-semibold">Inputs</h2>
+            <div className="space-y-4">
+              <label className="block">
+                <span className="mb-1 block text-sm font-medium">Width (ft)</span>
+                <input className="w-full rounded-xl border border-slate-300 px-3 py-2" defaultValue="5" />
+              </label>
+              <label className="block">
+                <span className="mb-1 block text-sm font-medium">Height (ft)</span>
+                <input className="w-full rounded-xl border border-slate-300 px-3 py-2" defaultValue="8" />
+              </label>
+              <label className="block">
+                <span className="mb-1 block text-sm font-medium">Quantity</span>
+                <input className="w-full rounded-xl border border-slate-300 px-3 py-2" defaultValue="1" />
+              </label>
+              <label className="block">
+                <span className="mb-1 block text-sm font-medium">Material</span>
+                <select className="w-full rounded-xl border border-slate-300 px-3 py-2">
+                  {materials.map((m) => (
+                    <option key={m.name}>{m.name}</option>
+                  ))}
+                </select>
+              </label>
+              <div className="grid grid-cols-2 gap-3">
+                <label className="block">
+                  <span className="mb-1 block text-sm font-medium">Pole Pocket LF</span>
+                  <input className="w-full rounded-xl border border-slate-300 px-3 py-2" defaultValue="0" />
+                </label>
+                <label className="block">
+                  <span className="mb-1 block text-sm font-medium">Rope LF</span>
+                  <input className="w-full rounded-xl border border-slate-300 px-3 py-2" defaultValue="0" />
+                </label>
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-slate-200 p-5">
+            <h2 className="mb-4 text-lg font-semibold">Next Build Targets</h2>
+            <div className="space-y-3 text-sm text-slate-700">
+              <div className="rounded-xl bg-slate-50 p-3">Wire this form to live pricing logic with React state.</div>
+              <div className="rounded-xl bg-slate-50 p-3">Add automatic quantity tier pricing for 1-999 and 1000+.</div>
+              <div className="rounded-xl bg-slate-50 p-3">Add pole pocket, wind slits, rope, and rush logic.</div>
+              <div className="rounded-xl bg-slate-50 p-3">Add save quote, PDF export, and customer-facing quote output.</div>
+              <div className="rounded-xl bg-slate-50 p-3">Optional: connect to Supabase so your sales team can store quotes.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
