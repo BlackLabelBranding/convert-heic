@@ -1,12 +1,11 @@
-import React, { useMemo, useState, useEffect } from "react";
+import React, { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 
 export default function BannerCalculator() {
   const [width, setWidth] = useState("5");
   const [height, setHeight] = useState("8");
   const [quantity, setQuantity] = useState("1");
-  const [materialWeight, setMaterialWeight] = useState("15oz");
-  const [printType, setPrintType] = useState("Single-Sided");
+  const [material, setMaterial] = useState("15oz Single-Sided");
   const [polePocketLf, setPolePocketLf] = useState("0");
   const [ropeLf, setRopeLf] = useState("0");
   const [windSlits, setWindSlits] = useState(false);
@@ -22,50 +21,27 @@ export default function BannerCalculator() {
   ];
 
   const materials = {
-    "13oz": {
-      label: "13oz Standard",
-      options: {
-        "Single-Sided": {
-          costSmall: 1.25,
-          costLarge: 1.0,
-          margin: 0.6,
-        },
-      },
+    "13oz Single-Sided": {
+      costSmall: 1.25,
+      costLarge: 1.0,
+      margin: 0.6,
     },
-    "15oz": {
-      label: "15oz Recommended",
-      options: {
-        "Single-Sided": {
-          costSmall: 1.75,
-          costLarge: 1.25,
-          margin: 0.625,
-        },
-      },
+    "15oz Single-Sided": {
+      costSmall: 1.75,
+      costLarge: 1.25,
+      margin: 0.625,
     },
-    "18oz": {
-      label: "18oz Heavy Duty",
-      options: {
-        "Single-Sided": {
-          costSmall: 2.25,
-          costLarge: 1.75,
-          margin: 0.65,
-        },
-        "Double-Sided": {
-          costSmall: 4.25,
-          costLarge: 3.25,
-          margin: 0.7,
-        },
-      },
+    "18oz Single-Sided": {
+      costSmall: 2.25,
+      costLarge: 1.75,
+      margin: 0.65,
+    },
+    "18oz Double-Sided": {
+      costSmall: 4.25,
+      costLarge: 3.25,
+      margin: 0.7,
     },
   };
-
-  const availablePrintTypes = Object.keys(materials[materialWeight].options);
-
-  useEffect(() => {
-    if (!availablePrintTypes.includes(printType)) {
-      setPrintType(availablePrintTypes[0]);
-    }
-  }, [materialWeight, printType, availablePrintTypes]);
 
   const formatCurrency = (value) =>
     new Intl.NumberFormat("en-US", {
@@ -98,7 +74,7 @@ export default function BannerCalculator() {
     const totalSqFt = sqFtEach * quantityNum;
     const tier = quantityNum >= 1000 ? "1000+" : "1-999";
 
-    const materialConfig = materials[materialWeight].options[printType];
+    const materialConfig = materials[material];
     const baseCostPerSqFt =
       quantityNum >= 1000 ? materialConfig.costLarge : materialConfig.costSmall;
     const retailPerSqFt = baseCostPerSqFt / (1 - materialConfig.margin);
@@ -145,19 +121,8 @@ export default function BannerCalculator() {
       grossProfit,
       grossMargin,
       unitPrice,
-      selectedLabel: `${materialWeight} ${printType}`,
     };
-  }, [
-    width,
-    height,
-    quantity,
-    materialWeight,
-    printType,
-    polePocketLf,
-    ropeLf,
-    windSlits,
-    rush,
-  ]);
+  }, [width, height, quantity, material, polePocketLf, ropeLf, windSlits, rush]);
 
   return (
     <div style={styles.page}>
@@ -201,8 +166,8 @@ export default function BannerCalculator() {
 
         <h1 style={styles.title}>Black Label Banner Calculator</h1>
         <p style={styles.subtitle}>
-          Live pricing for banner quotes with material weight, print type,
-          quantity tiers, add-ons, rush pricing, and margin visibility.
+          Live pricing for banner quotes with material switching, quantity tiers,
+          add-ons, rush pricing, and margin visibility.
         </p>
 
         <div style={styles.calculatorGrid}>
@@ -247,38 +212,18 @@ export default function BannerCalculator() {
               </div>
 
               <div style={styles.field}>
-                <label style={styles.label}>Material Weight</label>
+                <label style={styles.label}>Material</label>
                 <select
-                  value={materialWeight}
-                  onChange={(e) => setMaterialWeight(e.target.value)}
+                  value={material}
+                  onChange={(e) => setMaterial(e.target.value)}
                   style={styles.input}
                 >
                   {Object.keys(materials).map((key) => (
                     <option key={key} value={key}>
-                      {materials[key].label}
+                      {key}
                     </option>
                   ))}
                 </select>
-              </div>
-
-              <div style={styles.field}>
-                <label style={styles.label}>Print Type</label>
-                <select
-                  value={printType}
-                  onChange={(e) => setPrintType(e.target.value)}
-                  style={styles.input}
-                >
-                  {availablePrintTypes.map((type) => (
-                    <option key={type} value={type}>
-                      {type}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div style={styles.field}>
-                <label style={styles.label}>Selected Material</label>
-                <div style={styles.readOnlyBox}>{calculations.selectedLabel}</div>
               </div>
 
               <div style={styles.field}>
@@ -339,10 +284,6 @@ export default function BannerCalculator() {
             <div style={styles.panel}>
               <h2 style={styles.panelTitle}>Order Metrics</h2>
 
-              <div style={styles.metricRow}>
-                <span style={styles.metricLabel}>Selected Material</span>
-                <span style={styles.metricValue}>{calculations.selectedLabel}</span>
-              </div>
               <div style={styles.metricRow}>
                 <span style={styles.metricLabel}>Active Pricing Tier</span>
                 <span style={styles.metricValue}>{calculations.tier}</span>
@@ -570,18 +511,6 @@ const styles = {
     color: "#fff",
     fontSize: "15px",
     outline: "none",
-  },
-  readOnlyBox: {
-    padding: "12px 14px",
-    borderRadius: "12px",
-    border: "1px solid #333",
-    background: "#0a0a0a",
-    color: "#39ff14",
-    fontSize: "15px",
-    minHeight: "47px",
-    display: "flex",
-    alignItems: "center",
-    fontWeight: "bold",
   },
   toggleRow: {
     display: "grid",
