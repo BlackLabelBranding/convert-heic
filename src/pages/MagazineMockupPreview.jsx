@@ -89,34 +89,13 @@ export default function MagazineMockupPreview() {
     setCurrentIndex((prev) => Math.max(prev - 1, 0));
   }
 
-  function renderPage(page, opts = {}) {
-    const { mini = false, flushLeft = false, flushRight = false } = opts;
-
-    const shellStyle = mini ? styles.miniPageShell : styles.pageShell;
-    const innerStyle = mini
-      ? styles.miniPageInner
-      : {
-          ...styles.pageInner,
-          borderTopLeftRadius: flushLeft ? 4 : 10,
-          borderBottomLeftRadius: flushLeft ? 4 : 10,
-          borderTopRightRadius: flushRight ? 4 : 10,
-          borderBottomRightRadius: flushRight ? 4 : 10,
-        };
-
-    if (!page) {
-      return (
-        <div style={shellStyle}>
-          <div style={mini ? styles.miniPageEmpty : styles.pageEmpty}>No page</div>
-        </div>
-      );
-    }
-
+  function getImageStyle(page) {
     const fit = page.image_fit || "cover";
     const scale = Number(page.image_scale) || 1;
     const x = Number(page.image_x) || 0;
     const y = Number(page.image_y) || 0;
 
-    const imageStyle = {
+    return {
       position: "absolute",
       left: "50%",
       top: "50%",
@@ -136,9 +115,32 @@ export default function MagazineMockupPreview() {
       objectPosition: "center center",
       pointerEvents: "none",
     };
+  }
+
+  function renderFullPage(page, opts = {}) {
+    const { mini = false, flushLeft = false, flushRight = false } = opts;
+
+    if (!page) {
+      return (
+        <div style={mini ? styles.miniPageShell : styles.pageShell}>
+          <div style={mini ? styles.miniPageEmpty : styles.pageEmpty}>No page</div>
+        </div>
+      );
+    }
+
+    const outerStyle = mini ? styles.miniPageShell : styles.pageShell;
+    const innerStyle = mini
+      ? styles.miniPageInner
+      : {
+          ...styles.pageInner,
+          borderTopLeftRadius: flushLeft ? 4 : 10,
+          borderBottomLeftRadius: flushLeft ? 4 : 10,
+          borderTopRightRadius: flushRight ? 4 : 10,
+          borderBottomRightRadius: flushRight ? 4 : 10,
+        };
 
     return (
-      <div style={shellStyle}>
+      <div style={outerStyle}>
         <div
           style={{
             ...innerStyle,
@@ -149,7 +151,7 @@ export default function MagazineMockupPreview() {
             <img
               src={page.image}
               alt={page.image_name || "Page asset"}
-              style={imageStyle}
+              style={getImageStyle(page)}
             />
           ) : (
             <div style={mini ? styles.miniNoImage : styles.noImageText}>
@@ -160,6 +162,34 @@ export default function MagazineMockupPreview() {
           {!mini ? (
             <div style={styles.pageNumberBadge}>Page {page.page_number}</div>
           ) : null}
+        </div>
+      </div>
+    );
+  }
+
+  function renderSingleStage(page) {
+    if (!page) return null;
+
+    return (
+      <div style={styles.singleStage}>
+        <div style={styles.singleFixedPage}>
+          <div
+            style={{
+              ...styles.singleFixedInner,
+              background: page.background_color || "#fff",
+            }}
+          >
+            {page.image ? (
+              <img
+                src={page.image}
+                alt={page.image_name || "Page asset"}
+                style={getImageStyle(page)}
+              />
+            ) : (
+              <div style={styles.noImageText}>No image on this page</div>
+            )}
+            <div style={styles.pageNumberBadge}>Page {page.page_number}</div>
+          </div>
         </div>
       </div>
     );
@@ -239,34 +269,26 @@ export default function MagazineMockupPreview() {
                 : "blbSlideInLeft 0.22s ease",
           }}
         >
-          {currentItem?.type === "cover" ? (
-            <div style={styles.singleStage}>
-              <div style={styles.singleStageInner}>
-                {renderPage(currentItem.right)}
-              </div>
-            </div>
-          ) : currentItem?.type === "single" ? (
-            <div style={styles.singleStage}>
-              <div style={styles.singleStageInner}>
-                {renderPage(currentItem.left)}
-              </div>
-            </div>
-          ) : (
-            <div style={styles.trueSpreadWrap}>
-              <div style={styles.trueSpreadShadow} />
-              <div style={styles.trueSpread}>
-                <div style={styles.trueSpreadPageLeft}>
-                  {renderPage(currentItem?.left, { flushRight: true })}
-                </div>
+          {currentItem?.type === "cover"
+            ? renderSingleStage(currentItem.right)
+            : currentItem?.type === "single"
+              ? renderSingleStage(currentItem.left)
+              : (
+                <div style={styles.trueSpreadWrap}>
+                  <div style={styles.trueSpreadShadow} />
+                  <div style={styles.trueSpread}>
+                    <div style={styles.trueSpreadPageLeft}>
+                      {renderFullPage(currentItem?.left, { flushRight: true })}
+                    </div>
 
-                <div style={styles.trueSpreadSeam} />
+                    <div style={styles.trueSpreadSeam} />
 
-                <div style={styles.trueSpreadPageRight}>
-                  {renderPage(currentItem?.right, { flushLeft: true })}
+                    <div style={styles.trueSpreadPageRight}>
+                      {renderFullPage(currentItem?.right, { flushLeft: true })}
+                    </div>
+                  </div>
                 </div>
-              </div>
-            </div>
-          )}
+              )}
         </div>
 
         <div style={styles.controls}>
@@ -299,11 +321,11 @@ export default function MagazineMockupPreview() {
             >
               {item.type === "spread" ? (
                 <div style={styles.spreadMiniWrap}>
-                  {renderPage(item.left, { mini: true })}
-                  {renderPage(item.right, { mini: true })}
+                  {renderFullPage(item.left, { mini: true })}
+                  {renderFullPage(item.right, { mini: true })}
                 </div>
               ) : (
-                renderPage(item.right || item.left, { mini: true })
+                renderFullPage(item.right || item.left, { mini: true })
               )}
 
               <div style={styles.thumbLabel}>{item.label}</div>
@@ -375,11 +397,20 @@ const styles = {
     alignItems: "center",
     justifyContent: "center",
   },
-  singleStageInner: {
+  singleFixedPage: {
     width: "490px",
     maxWidth: "92%",
-    aspectRatio: "8.5 / 11",
-    display: "flex",
+    height: "635px",
+    display: "block",
+  },
+  singleFixedInner: {
+    position: "relative",
+    width: "100%",
+    height: "100%",
+    borderRadius: "10px",
+    overflow: "hidden",
+    boxShadow: "0 30px 80px rgba(0,0,0,0.5)",
+    border: "1px solid #ddd",
   },
 
   trueSpreadWrap: {
@@ -573,14 +604,5 @@ const styles = {
   notFoundText: {
     color: "#b3b3b3",
     marginBottom: "20px",
-  },
-  primaryLink: {
-    display: "inline-block",
-    padding: "12px 14px",
-    borderRadius: "12px",
-    background: "#39ff14",
-    color: "#000",
-    fontWeight: "bold",
-    textDecoration: "none",
   },
 };
