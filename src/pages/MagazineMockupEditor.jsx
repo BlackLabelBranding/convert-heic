@@ -103,6 +103,28 @@ async function splitImageIntoSpread(file) {
   };
 }
 
+function buildSpreadOptions(pages) {
+  const sorted = [...pages].sort((a, b) => a.page_number - b.page_number);
+  const spreads = [];
+
+  for (let i = 0; i < sorted.length - 1; i += 2) {
+    const left = sorted[i];
+    const right = sorted[i + 1];
+    if (!left || !right) continue;
+
+    spreads.push({
+      key: `${left.id}:${right.id}`,
+      leftId: left.id,
+      rightId: right.id,
+      leftPageNumber: left.page_number,
+      rightPageNumber: right.page_number,
+      label: `Pages ${left.page_number}-${right.page_number}`,
+    });
+  }
+
+  return spreads;
+}
+
 export default function MagazineMockupEditor() {
   const fileInputRef = useRef(null);
   const spreadInputRef = useRef(null);
@@ -110,6 +132,7 @@ export default function MagazineMockupEditor() {
 
   const [project, setProject] = useState(null);
   const [selectedPageId, setSelectedPageId] = useState(null);
+  const [selectedSpreadKey, setSelectedSpreadKey] = useState("");
   const [message, setMessage] = useState("");
   const [viewMode, setViewMode] = useState("single");
 
@@ -125,9 +148,55 @@ export default function MagazineMockupEditor() {
     return [...project.pages].sort((a, b) => a.page_number - b.page_number);
   }, [project]);
 
+  const spreadOptions = useMemo(() => {
+    return buildSpreadOptions(sortedPages);
+  }, [sortedPages]);
+
   const selectedPage = useMemo(() => {
     return sortedPages.find((p) => p.id === selectedPageId) || null;
   }, [sortedPages, selectedPageId]);
+
+  const detectedSpread = useMemo(() => {
+    if (!selectedPage || !sortedPages.length) return null;
+
+    const index = sortedPages.findIndex((p) => p.id === selectedPage.id);
+    if (index === -1) return null;
+
+    const leftIndex = index % 2 === 0 ? index : index - 1;
+    const rightIndex = leftIndex + 1;
+
+    const left = sortedPages[leftIndex] || null;
+    const right = sortedPages[rightIndex] || null;
+
+    if (!left || !right) return null;
+
+    return {
+      key: `${left.id}:${right.id}`,
+      leftId: left.id,
+      rightId: right.id,
+      leftPageNumber: left.page_number,
+      rightPageNumber: right.page_number,
+      label: `Pages ${left.page_number}-${right.page_number}`,
+    };
+  }, [selectedPage, sortedPages]);
+
+  useEffect(() => {
+    if (!spreadOptions.length) {
+      setSelectedSpreadKey("");
+      return;
+    }
+
+    if (detectedSpread?.key) {
+      setSelectedSpreadKey(detectedSpread.key);
+      return;
+    }
+
+    setSelectedSpreadKey(spreadOptions[0].key);
+  }, [detectedSpread, spreadOptions]);
+
+  const selectedSpreadOption = useMemo(() => {
+    return spreadOptions.find((s) => s.key === selectedSpreadKey) || null;
+  }, [spreadOptions, selectedSpreadKey]);
 
   const spreadPair = useMemo(() => {
     if (!selectedPage || !sortedPages.length) return { left: null, right: null };
@@ -319,6 +388,10 @@ export default function MagazineMockupEditor() {
   }
 
   function onSpreadUploadClick() {
+    if (!selectedSpreadOption) {
+      setMessage("No valid spread is selected.");
+      return;
+    }
     if (spreadInputRef.current) spreadInputRef.current.click();
   }
 
@@ -343,35 +416,19 @@ export default function MagazineMockupEditor() {
 
   async function handleSpreadUpload(event) {
     const file = event.target.files?.[0];
-    if (!file || !selectedPage || !project) return;
+    if (!file || !selectedSpreadOption || !project) return;
 
     try {
-      const currentPages = [...project.pages].sort((a, b) => a.page_number - b.page_number);
-      const selectedIndex = currentPages.findIndex((p) => p.id === selectedPage.id);
-
-      if (selectedIndex === -1) {
-        setMessage("Could not find selected page.");
-        return;
-      }
-
-      const leftIndex = selectedIndex % 2 === 0 ? selectedIndex : selectedIndex - 1;
-      const rightIndex = leftIndex + 1;
-
-      const leftPage = currentPages[leftIndex] || null;
-      const rightPage = currentPages[rightIndex] || null;
-
-      if (!leftPage || !rightPage) {
-        setMessage("Spread upload needs two side-by-side pages. Use normal upload for covers/single pages.");
-        return;
-      }
-
       const { leftImage, rightImage } = await splitImageIntoSpread(file);
+
+      const leftPageId = selectedSpreadOption.leftId;
+      const rightPageId = selectedSpreadOption.rightId;
 
       updateProject(
         (current) => ({
           ...current,
           pages: current.pages.map((page) => {
-            if (page.id === leftPage.id) {
+            if (page.id === leftPageId) {
               return {
                 ...page,
                 image: leftImage,
@@ -383,7 +440,7 @@ export default function MagazineMockupEditor() {
               };
             }
 
-            if (page.id === rightPage.id) {
+            if (page.id === rightPageId) {
               return {
                 ...page,
                 image: rightImage,
@@ -398,10 +455,10 @@ export default function MagazineMockupEditor() {
             return page;
           }),
         }),
-        `Spread image split across pages ${leftPage.page_number}-${rightPage.page_number}.`
+        `Spread image applied to pages ${selectedSpreadOption.leftPageNumber}-${selectedSpreadOption.rightPageNumber}.`
       );
 
-      setSelectedPageId(leftPage.id);
+      setSelectedPageId(leftPageId);
     } catch (error) {
       setMessage(error.message || "Failed to split spread image.");
     } finally {
@@ -740,13 +797,41 @@ export default function MagazineMockupEditor() {
                 />
               </div>
 
+              <div style={styles.spreadInfoBox}>
+                <div style={styles.spreadInfoTitle}>Spread Upload Target</div>
+                <div style={styles.spreadInfoText}>
+                  {selectedSpreadOption
+                    ? `This upload will apply to ${selectedSpreadOption.label}.`
+                    : "No valid spread is available."}
+                </div>
+
+                <div style={styles.field}>
+                  <label style={styles.label}>Choose spread pair</label>
+                  <select
+                    style={styles.input}
+                    value={selectedSpreadKey}
+                    onChange={(e) => setSelectedSpreadKey(e.target.value)}
+                  >
+                    {spreadOptions.map((option) => (
+                      <option key={option.key} value={option.key}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
               <div style={styles.buttonCol}>
                 <button style={styles.primaryButton} onClick={onUploadClick}>
                   Upload / Replace Image
                 </button>
 
-                <button style={styles.secondaryButton} onClick={onSpreadUploadClick}>
-                  Upload One Image For Spread
+                <button
+                  style={styles.secondaryButton}
+                  onClick={onSpreadUploadClick}
+                  disabled={!selectedSpreadOption}
+                >
+                  Upload One Image For {selectedSpreadOption?.label || "Spread"}
                 </button>
 
                 <button style={styles.secondaryButton} onClick={clearImage}>
@@ -1063,6 +1148,25 @@ const styles = {
     color: "#9fdc90",
     wordBreak: "break-all",
     lineHeight: 1.5,
+  },
+  spreadInfoBox: {
+    background: "#0b0b0b",
+    border: "1px solid #222",
+    borderRadius: "14px",
+    padding: "14px",
+    marginBottom: "14px",
+  },
+  spreadInfoTitle: {
+    fontSize: "13px",
+    fontWeight: "bold",
+    color: "#fff",
+    marginBottom: "6px",
+  },
+  spreadInfoText: {
+    fontSize: "12px",
+    color: "#b3b3b3",
+    lineHeight: 1.5,
+    marginBottom: "12px",
   },
   buttonCol: {
     display: "grid",
