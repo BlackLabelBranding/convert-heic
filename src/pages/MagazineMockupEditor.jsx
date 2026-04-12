@@ -123,13 +123,22 @@ async function uploadFileToStorage(projectId, filename, fileOrBlob) {
   const safeName = filename.replace(/[^a-zA-Z0-9._-]/g, "-");
   const path = `${projectId}/${Date.now()}-${safeName}`;
 
-  const { error } = await supabase.storage
+  const { error: uploadError } = await supabase.storage
     .from(BUCKET)
-    .upload(path, fileOrBlob, { upsert: true });
+    .upload(path, fileOrBlob, {
+      upsert: true,
+      contentType: fileOrBlob.type || "image/png",
+    });
 
-  if (error) throw error;
+  if (uploadError) {
+    throw new Error(`Storage upload failed: ${uploadError.message}`);
+  }
 
   const { data } = supabase.storage.from(BUCKET).getPublicUrl(path);
+
+  if (!data?.publicUrl) {
+    throw new Error("Public URL could not be generated.");
+  }
 
   return {
     path,
@@ -180,7 +189,7 @@ export default function MagazineMockupEditor() {
 
     setProject(projectData);
     setPages(pageData || []);
-    setSelectedPageId(pageData?.[0]?.id || null);
+    setSelectedPageId((prev) => prev || pageData?.[0]?.id || null);
     setLoading(false);
   }
 
@@ -243,11 +252,7 @@ export default function MagazineMockupEditor() {
   const spreadPair = useMemo(() => {
     if (!selectedPage || !sortedPages.length) return { left: null, right: null };
     const index = sortedPages.findIndex((p) => p.id === selectedPage.id);
-    if (index === -1) return { left: null, right: null };
-
-    if (index === 0) {
-      return { left: null, right: null };
-    }
+    if (index === -1 || index === 0) return { left: null, right: null };
 
     const leftIndex = index % 2 === 0 ? index - 1 : index;
     return {
@@ -341,13 +346,13 @@ export default function MagazineMockupEditor() {
       return;
     }
 
-    await updateBackCoverAfterPageChange(nextNumber + 1);
+    await updateBackCoverAfterPageChange();
     await loadProject();
     setSelectedPageId(data.id);
     setMessage("Page added.");
   }
 
-  async function updateBackCoverAfterPageChange(totalPages) {
+  async function updateBackCoverAfterPageChange() {
     const refreshedPages = await supabase
       .from("magazine_pages")
       .select("*")
@@ -371,6 +376,13 @@ export default function MagazineMockupEditor() {
         .from("magazine_pages")
         .update({ page_type: "inside", updated_at: new Date().toISOString() })
         .eq("id", page.id);
+    }
+
+    if (rows[0]) {
+      await supabase
+        .from("magazine_pages")
+        .update({ page_type: "cover", updated_at: new Date().toISOString() })
+        .eq("id", rows[0].id);
     }
   }
 
@@ -446,41 +458,25 @@ export default function MagazineMockupEditor() {
   async function duplicatePage() {
     if (!selectedPage) return;
 
-    const pageList = [...pages].sort((a, b) => a.page_number - b.page_number);
-    const index = pageList.findIndex((p) => p.id === selectedPage.id);
-    if (index === -1) return;
+    const insertPayload = {
+      project_id: projectId,
+      page_number: selectedPage.page_number + 1,
+      page_type: "inside",
+      background_color: selectedPage.background_color,
+      image_path: selectedPage.image_path,
+      image_url: selectedPage.image_url,
+      image_name: selectedPage.image_name,
+      image_fit: selectedPage.image_fit,
+      image_scale: selectedPage.image_scale,
+      image_x: selectedPage.image_x,
+      image_y: selectedPage.image_y,
+    };
 
-    const newPages = [
-      ...pageList.slice(0, index + 1),
-      {
-        ...selectedPage,
-        id: undefined,
-      },
-      ...pageList.slice(index + 1),
-    ];
+    const { error } = await supabase.from("magazine_pages").insert(insertPayload);
 
-    for (let i = 0; i < newPages.length; i += 1) {
-      const page = newPages[i];
-      if (page.id) continue;
-
-      const { error } = await supabase.from("magazine_pages").insert({
-        project_id: projectId,
-        page_number: i + 1,
-        page_type: "inside",
-        background_color: page.background_color,
-        image_path: page.image_path,
-        image_url: page.image_url,
-        image_name: page.image_name,
-        image_fit: page.image_fit,
-        image_scale: page.image_scale,
-        image_x: page.image_x,
-        image_y: page.image_y,
-      });
-
-      if (error) {
-        setMessage(error.message);
-        return;
-      }
+    if (error) {
+      setMessage(error.message);
+      return;
     }
 
     const refreshed = await supabase
@@ -529,6 +525,8 @@ export default function MagazineMockupEditor() {
     if (!file || !selectedPage) return;
 
     try {
+      setMessage("Uploading image...");
+
       const uploaded = await uploadFileToStorage(
         projectId,
         `${selectedPage.page_number}-${file.name}`,
@@ -545,6 +543,7 @@ export default function MagazineMockupEditor() {
         "Image uploaded."
       );
     } catch (error) {
+      console.error("handleImageUpload error:", error);
       setMessage(error.message || "Upload failed.");
     } finally {
       event.target.value = "";
@@ -556,6 +555,8 @@ export default function MagazineMockupEditor() {
     if (!file || !selectedSpreadOption) return;
 
     try {
+      setMessage(`Uploading spread for pages ${selectedSpreadOption.leftPageNumber}-${selectedSpreadOption.rightPageNumber}...`);
+
       const { leftBlob, rightBlob } = await splitImageIntoSpread(file);
 
       const leftUpload = await uploadFileToStorage(
@@ -576,7 +577,7 @@ export default function MagazineMockupEditor() {
           image_path: leftUpload.path,
           image_url: leftUpload.url,
           image_name: `${file.name} (left)`,
-          image_fit: "cover",
+          image_fit: "stretch",
           image_scale: 1,
           image_x: 0,
           image_y: 0,
@@ -590,7 +591,7 @@ export default function MagazineMockupEditor() {
           image_path: rightUpload.path,
           image_url: rightUpload.url,
           image_name: `${file.name} (right)`,
-          image_fit: "cover",
+          image_fit: "stretch",
           image_scale: 1,
           image_x: 0,
           image_y: 0,
@@ -600,8 +601,10 @@ export default function MagazineMockupEditor() {
 
       await loadProject();
       setSelectedPageId(selectedSpreadOption.leftId);
+      setViewMode("spread");
       setMessage(`Spread image applied to pages ${selectedSpreadOption.leftPageNumber}-${selectedSpreadOption.rightPageNumber}.`);
     } catch (error) {
+      console.error("handleSpreadUpload error:", error);
       setMessage(error.message || "Failed to split spread image.");
     } finally {
       event.target.value = "";
@@ -822,9 +825,52 @@ export default function MagazineMockupEditor() {
               />
             </div>
 
+            <div style={styles.field}>
+              <label style={styles.label}>Page Width</label>
+              <input
+                style={styles.input}
+                type="number"
+                value={project.page_width || 2550}
+                onChange={(e) =>
+                  updateProject(
+                    { page_width: Number(e.target.value) || 2550 },
+                    "Page width updated."
+                  )
+                }
+              />
+            </div>
+
+            <div style={styles.field}>
+              <label style={styles.label}>Page Height</label>
+              <input
+                style={styles.input}
+                type="number"
+                value={project.page_height || 3300}
+                onChange={(e) =>
+                  updateProject(
+                    { page_height: Number(e.target.value) || 3300 },
+                    "Page height updated."
+                  )
+                }
+              />
+            </div>
+
+            <div style={styles.field}>
+              <label style={styles.label}>DPI</label>
+              <input
+                style={styles.input}
+                type="number"
+                value={project.dpi || 300}
+                onChange={(e) =>
+                  updateProject(
+                    { dpi: Number(e.target.value) || 300 },
+                    "DPI updated."
+                  )
+                }
+              />
+            </div>
+
             <div style={styles.metaBox}>
-              <div style={styles.metaLine}>Size: {project.page_width} × {project.page_height}</div>
-              <div style={styles.metaLine}>DPI: {project.dpi}</div>
               <div style={styles.metaLine}>Created: {formatDate(project.created_at)}</div>
               <div style={styles.metaLine}>Updated: {formatDate(project.updated_at)}</div>
             </div>
@@ -952,7 +998,7 @@ export default function MagazineMockupEditor() {
                 <div style={styles.spreadInfoTitle}>Spread Upload Target</div>
                 <div style={styles.spreadInfoText}>
                   {selectedSpreadOption
-                    ? `This upload will apply to ${selectedSpreadOption.label}.`
+                    ? `This upload will apply to ${selectedSpreadOption.label}. Use a true spread image, ideally ${project.page_width * 2} × ${project.page_height}.`
                     : "No valid spread is available."}
                 </div>
 
