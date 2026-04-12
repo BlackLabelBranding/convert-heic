@@ -455,21 +455,22 @@ export default function MagazineMockupEditor() {
           <div style={styles.navBrand}>Magazine Mockup Editor</div>
         </div>
 
-      <div style={styles.navActions}>
-  <Link
-    to={`/magazine-mockup/${project.id}/preview`}
-    style={styles.primaryLinkButton}
-  >
-    Preview Flipbook
-  </Link>
+        <div style={styles.navActions}>
+          <Link
+            to={`/magazine-mockup/${project.id}/preview`}
+            style={styles.primaryLinkButton}
+          >
+            Preview Flipbook
+          </Link>
 
-  <button
-    style={styles.secondaryButton}
-    onClick={() => navigate("/magazine-mockup")}
-  >
-    Dashboard
-  </button>
-</div>  
+          <button
+            style={styles.secondaryButton}
+            onClick={() => navigate("/magazine-mockup")}
+          >
+            Dashboard
+          </button>
+        </div>
+      </nav>
 
       <div style={styles.editorWrap}>
         <div style={styles.sidebar}>
