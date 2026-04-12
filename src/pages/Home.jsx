@@ -18,8 +18,7 @@ export default function Home() {
     {
       name: "Banner Calculator",
       href: "/banner-calculator",
-      description:
-        "Quote banners with live material, add-on, and margin pricing.",
+      description: "Quote banners with live material, add-on, and margin pricing.",
     },
     {
       name: "Image Resize",
@@ -75,10 +74,7 @@ export default function Home() {
                   ...(tool.featured ? styles.featuredCard : {}),
                 }}
               >
-                {tool.featured && (
-                  <div style={styles.badge}>NEW</div>
-                )}
-
+                {tool.featured ? <div style={styles.badge}>NEW</div> : null}
                 <div style={styles.cardTitle}>{tool.name}</div>
                 <div style={styles.cardText}>{tool.description}</div>
               </Link>
@@ -124,6 +120,8 @@ const styles = {
     display: "block",
     margin: "0 auto 20px auto",
     maxWidth: "220px",
+    width: "100%",
+    height: "auto",
   },
   title: {
     fontSize: "42px",
@@ -142,7 +140,6 @@ const styles = {
     gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
     gap: "20px",
   },
-
   card: {
     position: "relative",
     display: "block",
@@ -155,12 +152,10 @@ const styles = {
     color: "#fff",
     transition: "0.2s ease",
   },
-
   featuredCard: {
     border: "1px solid #39ff14",
     boxShadow: "0 0 20px rgba(57,255,20,0.15)",
   },
-
   badge: {
     position: "absolute",
     top: "12px",
@@ -172,7 +167,6 @@ const styles = {
     padding: "4px 8px",
     borderRadius: "6px",
   },
-
   cardDisabled: {
     background: "#0b0b0b",
     border: "1px solid #1b1b1b",
@@ -181,21 +175,18 @@ const styles = {
     textAlign: "left",
     color: "#666",
   },
-
   cardTitle: {
     fontSize: "20px",
     fontWeight: "bold",
     color: "#39ff14",
     marginBottom: "10px",
   },
-
   cardTitleDisabled: {
     fontSize: "20px",
     fontWeight: "bold",
     color: "#666",
     marginBottom: "10px",
   },
-
   cardText: {
     fontSize: "14px",
     lineHeight: 1.5,
