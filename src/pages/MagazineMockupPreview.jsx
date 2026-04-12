@@ -19,7 +19,6 @@ export default function MagazineMockupPreview() {
   const [project, setProject] = useState(null);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [viewMode, setViewMode] = useState("spread");
-  const [direction, setDirection] = useState("next");
 
   useEffect(() => {
     const allProjects = loadProjects();
@@ -47,7 +46,6 @@ export default function MagazineMockupPreview() {
   const currentSingle = sortedPages[currentIndex] || null;
 
   function next() {
-    setDirection("next");
     if (viewMode === "spread") {
       setCurrentIndex((prev) => Math.min(prev + 1, spreads.length - 1));
     } else {
@@ -56,7 +54,6 @@ export default function MagazineMockupPreview() {
   }
 
   function prev() {
-    setDirection("prev");
     setCurrentIndex((prev) => Math.max(prev - 1, 0));
   }
 
@@ -116,6 +113,7 @@ export default function MagazineMockupPreview() {
         <div style={styles.topBar}>
           <div style={styles.brand}>Black Label Preview</div>
         </div>
+
         <div style={styles.centerWrap}>
           <div style={styles.notFoundCard}>
             <h1 style={styles.notFoundTitle}>Preview not found</h1>
@@ -144,6 +142,7 @@ export default function MagazineMockupPreview() {
           <Link to={`/magazine-mockup/${project.id}`} style={styles.controlLink}>
             Back to Editor
           </Link>
+
           <button
             style={{
               ...styles.controlButton,
@@ -156,6 +155,7 @@ export default function MagazineMockupPreview() {
           >
             Single
           </button>
+
           <button
             style={{
               ...styles.controlButton,
@@ -177,27 +177,13 @@ export default function MagazineMockupPreview() {
         </div>
 
         {viewMode === "spread" ? (
-          <div
-            key={`spread-${currentIndex}-${direction}`}
-            style={{
-              ...styles.stageSpread,
-              ...(direction === "next" ? styles.slideInRight : styles.slideInLeft),
-            }}
-          >
+          <div style={styles.stageSpread}>
             {renderPage(currentSpread.left)}
             <div style={styles.spineShadow} />
             {renderPage(currentSpread.right)}
           </div>
         ) : (
-          <div
-            key={`single-${currentIndex}-${direction}`}
-            style={{
-              ...styles.stageSingle,
-              ...(direction === "next" ? styles.slideInRight : styles.slideInLeft),
-            }}
-          >
-            {renderPage(currentSingle)}
-          </div>
+          <div style={styles.stageSingle}>{renderPage(currentSingle)}</div>
         )}
 
         <div style={styles.controls}>
@@ -305,12 +291,6 @@ const styles = {
     borderRadius: "24px",
     border: "1px solid #161616",
     gap: "14px",
-  },
-  slideInRight: {
-    animation: "blbSlideInRight 0.25s ease",
-  },
-  slideInLeft: {
-    animation: "blbSlideInLeft 0.25s ease",
   },
   spineShadow: {
     width: "18px",
