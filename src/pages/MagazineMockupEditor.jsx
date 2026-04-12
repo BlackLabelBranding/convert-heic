@@ -1,21 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import { supabase } from "../lib/customSupabaseClient";
 
-const STORAGE_KEY = "blb_magazine_mockup_projects";
-
-function loadProjects() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
-}
-
-function saveProjects(projects) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(projects));
-}
+const BUCKET = "magazine-mockups";
 
 function getProjectIdFromUrl() {
   const parts = window.location.pathname.split("/").filter(Boolean);
@@ -27,10 +13,6 @@ function getProjectIdFromUrl() {
 function buildShareUrl(token) {
   if (!token) return "";
   return `${window.location.origin}/m/${token}`;
-}
-
-function generateId() {
-  return `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
 function generateToken(length = 24) {
@@ -53,6 +35,18 @@ function formatDate(value) {
   } catch {
     return value;
   }
+}
+
+function dataUrlToBlob(dataUrl) {
+  const arr = dataUrl.split(",");
+  const mime = arr[0].match(/:(.*?);/)?.[1] || "image/png";
+  const bstr = atob(arr[1]);
+  let n = bstr.length;
+  const u8arr = new Uint8Array(n);
+  while (n--) {
+    u8arr[n] = bstr.charCodeAt(n);
+  }
+  return new Blob([u8arr], { type: mime });
 }
 
 async function splitImageIntoSpread(file) {
@@ -98,8 +92,8 @@ async function splitImageIntoSpread(file) {
   );
 
   return {
-    leftImage: leftCanvas.toDataURL("image/png"),
-    rightImage: rightCanvas.toDataURL("image/png"),
+    leftBlob: dataUrlToBlob(leftCanvas.toDataURL("image/png")),
+    rightBlob: dataUrlToBlob(rightCanvas.toDataURL("image/png")),
   };
 }
 
@@ -107,7 +101,7 @@ function buildSpreadOptions(pages) {
   const sorted = [...pages].sort((a, b) => a.page_number - b.page_number);
   const spreads = [];
 
-  for (let i = 0; i < sorted.length - 1; i += 2) {
+  for (let i = 1; i < sorted.length - 1; i += 2) {
     const left = sorted[i];
     const right = sorted[i + 1];
     if (!left || !right) continue;
@@ -125,32 +119,80 @@ function buildSpreadOptions(pages) {
   return spreads;
 }
 
+async function uploadFileToStorage(projectId, filename, fileOrBlob) {
+  const safeName = filename.replace(/[^a-zA-Z0-9._-]/g, "-");
+  const path = `${projectId}/${Date.now()}-${safeName}`;
+
+  const { error } = await supabase.storage
+    .from(BUCKET)
+    .upload(path, fileOrBlob, { upsert: true });
+
+  if (error) throw error;
+
+  const { data } = supabase.storage.from(BUCKET).getPublicUrl(path);
+
+  return {
+    path,
+    url: data.publicUrl,
+  };
+}
+
 export default function MagazineMockupEditor() {
   const fileInputRef = useRef(null);
   const spreadInputRef = useRef(null);
   const projectId = useMemo(() => getProjectIdFromUrl(), []);
 
   const [project, setProject] = useState(null);
+  const [pages, setPages] = useState([]);
   const [selectedPageId, setSelectedPageId] = useState(null);
   const [selectedSpreadKey, setSelectedSpreadKey] = useState("");
   const [message, setMessage] = useState("");
   const [viewMode, setViewMode] = useState("single");
+  const [loading, setLoading] = useState(true);
+
+  async function loadProject() {
+    setLoading(true);
+    setMessage("");
+
+    const { data: projectData, error: projectError } = await supabase
+      .from("magazine_projects")
+      .select("*")
+      .eq("id", projectId)
+      .single();
+
+    if (projectError) {
+      setMessage(projectError.message);
+      setLoading(false);
+      return;
+    }
+
+    const { data: pageData, error: pageError } = await supabase
+      .from("magazine_pages")
+      .select("*")
+      .eq("project_id", projectId)
+      .order("page_number", { ascending: true });
+
+    if (pageError) {
+      setMessage(pageError.message);
+      setLoading(false);
+      return;
+    }
+
+    setProject(projectData);
+    setPages(pageData || []);
+    setSelectedPageId(pageData?.[0]?.id || null);
+    setLoading(false);
+  }
 
   useEffect(() => {
-    const allProjects = loadProjects();
-    const found = allProjects.find((p) => p.id === projectId);
-    setProject(found || null);
-    setSelectedPageId(found?.pages?.[0]?.id || null);
+    loadProject();
   }, [projectId]);
 
   const sortedPages = useMemo(() => {
-    if (!project?.pages) return [];
-    return [...project.pages].sort((a, b) => a.page_number - b.page_number);
-  }, [project]);
+    return [...pages].sort((a, b) => a.page_number - b.page_number);
+  }, [pages]);
 
-  const spreadOptions = useMemo(() => {
-    return buildSpreadOptions(sortedPages);
-  }, [sortedPages]);
+  const spreadOptions = useMemo(() => buildSpreadOptions(sortedPages), [sortedPages]);
 
   const selectedPage = useMemo(() => {
     return sortedPages.find((p) => p.id === selectedPageId) || null;
@@ -160,9 +202,9 @@ export default function MagazineMockupEditor() {
     if (!selectedPage || !sortedPages.length) return null;
 
     const index = sortedPages.findIndex((p) => p.id === selectedPage.id);
-    if (index === -1) return null;
+    if (index <= 0) return null;
 
-    const leftIndex = index % 2 === 0 ? index : index - 1;
+    const leftIndex = index % 2 === 0 ? index - 1 : index;
     const rightIndex = leftIndex + 1;
 
     const left = sortedPages[leftIndex] || null;
@@ -203,48 +245,58 @@ export default function MagazineMockupEditor() {
     const index = sortedPages.findIndex((p) => p.id === selectedPage.id);
     if (index === -1) return { left: null, right: null };
 
-    if (index % 2 === 0) {
-      return {
-        left: sortedPages[index] || null,
-        right: sortedPages[index + 1] || null,
-      };
+    if (index === 0) {
+      return { left: null, right: null };
     }
 
+    const leftIndex = index % 2 === 0 ? index - 1 : index;
     return {
-      left: sortedPages[index - 1] || null,
-      right: sortedPages[index] || null,
+      left: sortedPages[leftIndex] || null,
+      right: sortedPages[leftIndex + 1] || null,
     };
   }, [selectedPage, sortedPages]);
 
-  function syncProject(updatedProject, nextMessage = "Saved.") {
-    const allProjects = loadProjects();
-    const nextProjects = allProjects.map((p) =>
-      p.id === updatedProject.id ? updatedProject : p
-    );
-    saveProjects(nextProjects);
-    setProject(updatedProject);
+  async function updateProject(patch, nextMessage = "Saved.") {
+    if (!project) return;
+
+    const payload = {
+      ...patch,
+      updated_at: new Date().toISOString(),
+    };
+
+    const { data, error } = await supabase
+      .from("magazine_projects")
+      .update(payload)
+      .eq("id", project.id)
+      .select()
+      .single();
+
+    if (error) {
+      setMessage(error.message);
+      return;
+    }
+
+    setProject(data);
     setMessage(nextMessage);
   }
 
-  function updateProject(updater, nextMessage = "Saved.") {
-    if (!project) return;
-    const updatedProject = {
-      ...updater(project),
-      updated_at: new Date().toISOString(),
-    };
-    syncProject(updatedProject, nextMessage);
-  }
+  async function updatePage(pageId, patch, nextMessage = "Page updated.") {
+    const { error } = await supabase
+      .from("magazine_pages")
+      .update({
+        ...patch,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", pageId);
 
-  function updatePage(pageId, patch, nextMessage = "Page updated.") {
-    updateProject(
-      (current) => ({
-        ...current,
-        pages: current.pages.map((page) =>
-          page.id === pageId ? { ...page, ...patch } : page
-        ),
-      }),
-      nextMessage
-    );
+    if (error) {
+      setMessage(error.message);
+      return;
+    }
+
+    await loadProject();
+    setSelectedPageId(pageId);
+    setMessage(nextMessage);
   }
 
   function goBack() {
@@ -259,48 +311,72 @@ export default function MagazineMockupEditor() {
     window.location.href = `/magazine-mockup/${projectId}/preview`;
   }
 
-  function renameProject(value) {
-    updateProject(
-      (current) => ({
-        ...current,
-        title: value,
-      }),
-      "Project title updated."
-    );
+  async function renameProject(value) {
+    await updateProject({ title: value }, "Project title updated.");
   }
 
-  function addPage() {
-    if (!project) return;
+  async function addPage() {
     const nextNumber =
-      Math.max(0, ...project.pages.map((p) => p.page_number || 0)) + 1;
+      Math.max(0, ...pages.map((p) => p.page_number || 0)) + 1;
 
-    const newPage = {
-      id: generateId(),
-      page_number: nextNumber,
-      page_type: "inside",
-      background_color: "#ffffff",
-      image: null,
-      image_name: null,
-      image_fit: "cover",
-      image_scale: 1,
-      image_x: 0,
-      image_y: 0,
-    };
+    const pageType = nextNumber === 1 ? "cover" : "inside";
 
-    updateProject(
-      (current) => ({
-        ...current,
-        pages: [...current.pages, newPage],
-      }),
-      "Page added."
-    );
+    const { data, error } = await supabase
+      .from("magazine_pages")
+      .insert({
+        project_id: projectId,
+        page_number: nextNumber,
+        page_type: pageType,
+        background_color: "#ffffff",
+        image_fit: "cover",
+        image_scale: 1,
+        image_x: 0,
+        image_y: 0,
+      })
+      .select()
+      .single();
 
-    setSelectedPageId(newPage.id);
+    if (error) {
+      setMessage(error.message);
+      return;
+    }
+
+    await updateBackCoverAfterPageChange(nextNumber + 1);
+    await loadProject();
+    setSelectedPageId(data.id);
+    setMessage("Page added.");
   }
 
-  function deleteSelectedPage() {
-    if (!project || !selectedPage) return;
-    if (project.pages.length <= 1) {
+  async function updateBackCoverAfterPageChange(totalPages) {
+    const refreshedPages = await supabase
+      .from("magazine_pages")
+      .select("*")
+      .eq("project_id", projectId)
+      .order("page_number", { ascending: true });
+
+    if (refreshedPages.error) return;
+
+    const rows = refreshedPages.data || [];
+    const last = rows[rows.length - 1];
+    if (!last) return;
+
+    await supabase
+      .from("magazine_pages")
+      .update({ page_type: "back_cover", updated_at: new Date().toISOString() })
+      .eq("id", last.id);
+
+    const others = rows.filter((p) => p.id !== last.id && p.page_type === "back_cover");
+    for (const page of others) {
+      await supabase
+        .from("magazine_pages")
+        .update({ page_type: "inside", updated_at: new Date().toISOString() })
+        .eq("id", page.id);
+    }
+  }
+
+  async function deleteSelectedPage() {
+    if (!selectedPage) return;
+    if (pages.length <= 1) {
       setMessage("A project must have at least one page.");
       return;
     }
@@ -308,79 +384,132 @@ export default function MagazineMockupEditor() {
     const confirmed = window.confirm(`Delete page ${selectedPage.page_number}?`);
     if (!confirmed) return;
 
-    const remaining = project.pages
+    const remaining = pages
       .filter((p) => p.id !== selectedPage.id)
-      .sort((a, b) => a.page_number - b.page_number)
-      .map((page, index) => ({
-        ...page,
-        page_number: index + 1,
-      }));
+      .sort((a, b) => a.page_number - b.page_number);
 
-    const updatedProject = {
-      ...project,
-      pages: remaining,
-      updated_at: new Date().toISOString(),
-    };
+    const { error } = await supabase
+      .from("magazine_pages")
+      .delete()
+      .eq("id", selectedPage.id);
 
-    syncProject(updatedProject, "Page deleted.");
+    if (error) {
+      setMessage(error.message);
+      return;
+    }
+
+    for (let i = 0; i < remaining.length; i += 1) {
+      const page = remaining[i];
+      await supabase
+        .from("magazine_pages")
+        .update({
+          page_number: i + 1,
+          page_type: i === remaining.length - 1 ? "back_cover" : i === 0 ? "cover" : "inside",
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", page.id);
+    }
+
+    await loadProject();
     setSelectedPageId(remaining[0]?.id || null);
+    setMessage("Page deleted.");
   }
 
-  function movePage(direction) {
-    if (!project || !selectedPage) return;
-    const pages = [...project.pages].sort((a, b) => a.page_number - b.page_number);
-    const index = pages.findIndex((p) => p.id === selectedPage.id);
+  async function movePage(direction) {
+    if (!selectedPage) return;
+
+    const pageList = [...pages].sort((a, b) => a.page_number - b.page_number);
+    const index = pageList.findIndex((p) => p.id === selectedPage.id);
+    const swapIndex = direction === "up" ? index - 1 : index + 1;
+
+    if (index === -1 || swapIndex < 0 || swapIndex >= pageList.length) return;
+
+    [pageList[index], pageList[swapIndex]] = [pageList[swapIndex], pageList[index]];
+
+    for (let i = 0; i < pageList.length; i += 1) {
+      const page = pageList[i];
+      await supabase
+        .from("magazine_pages")
+        .update({
+          page_number: i + 1,
+          page_type: i === pageList.length - 1 ? "back_cover" : i === 0 ? "cover" : "inside",
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", page.id);
+    }
+
+    await loadProject();
+    setSelectedPageId(selectedPage.id);
+    setMessage("Page order updated.");
+  }
+
+  async function duplicatePage() {
+    if (!selectedPage) return;
+
+    const pageList = [...pages].sort((a, b) => a.page_number - b.page_number);
+    const index = pageList.findIndex((p) => p.id === selectedPage.id);
     if (index === -1) return;
 
-    const swapIndex = direction === "up" ? index - 1 : index + 1;
-    if (swapIndex < 0 || swapIndex >= pages.length) return;
+    const newPages = [
+      ...pageList.slice(0, index + 1),
+      {
+        ...selectedPage,
+        id: undefined,
+      },
+      ...pageList.slice(index + 1),
+    ];
 
-    [pages[index], pages[swapIndex]] = [pages[swapIndex], pages[index]];
+    for (let i = 0; i < newPages.length; i += 1) {
+      const page = newPages[i];
+      if (page.id) continue;
 
-    const renumbered = pages.map((page, i) => ({
-      ...page,
-      page_number: i + 1,
-    }));
+      const { error } = await supabase.from("magazine_pages").insert({
+        project_id: projectId,
+        page_number: i + 1,
+        page_type: "inside",
+        background_color: page.background_color,
+        image_path: page.image_path,
+        image_url: page.image_url,
+        image_name: page.image_name,
+        image_fit: page.image_fit,
+        image_scale: page.image_scale,
+        image_x: page.image_x,
+        image_y: page.image_y,
+      });
 
-    updateProject(
-      (current) => ({
-        ...current,
-        pages: renumbered,
-      }),
-      "Page order updated."
-    );
-  }
+      if (error) {
+        setMessage(error.message);
+        return;
+      }
+    }
 
-  function duplicatePage() {
-    if (!project || !selectedPage) return;
+    const refreshed = await supabase
+      .from("magazine_pages")
+      .select("*")
+      .eq("project_id", projectId)
+      .order("created_at", { ascending: true });
 
-    const pages = [...project.pages].sort((a, b) => a.page_number - b.page_number);
-    const index = pages.findIndex((p) => p.id === selectedPage.id);
+    if (refreshed.error) {
+      setMessage(refreshed.error.message);
+      return;
+    }
 
-    const cloned = {
-      ...selectedPage,
-      id: generateId(),
-      page_number: selectedPage.page_number + 1,
-    };
+    const all = refreshed.data || [];
+    const sorted = [...all].sort((a, b) => a.page_number - b.page_number);
 
-    const nextPages = [
-      ...pages.slice(0, index + 1),
-      cloned,
-      ...pages.slice(index + 1),
-    ].map((page, i) => ({
-      ...page,
-      page_number: i + 1,
-    }));
+    for (let i = 0; i < sorted.length; i += 1) {
+      await supabase
+        .from("magazine_pages")
+        .update({
+          page_number: i + 1,
+          page_type: i === sorted.length - 1 ? "back_cover" : i === 0 ? "cover" : "inside",
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", sorted[i].id);
+    }
 
-    updateProject(
-      (current) => ({
-        ...current,
-        pages: nextPages,
-      }),
-      "Page duplicated."
-    );
-
-    setSelectedPageId(cloned.id);
+    await loadProject();
+    setMessage("Page duplicated.");
   }
 
   function onUploadClick() {
@@ -395,70 +524,83 @@ export default function MagazineMockupEditor() {
     if (spreadInputRef.current) spreadInputRef.current.click();
   }
 
-  function handleImageUpload(event) {
+  async function handleImageUpload(event) {
     const file = event.target.files?.[0];
     if (!file || !selectedPage) return;
 
-    const reader = new FileReader();
-    reader.onload = () => {
-      updatePage(
+    try {
+      const uploaded = await uploadFileToStorage(
+        projectId,
+        `${selectedPage.page_number}-${file.name}`,
+        file
+      );
+
+      await updatePage(
         selectedPage.id,
         {
-          image: reader.result,
+          image_path: uploaded.path,
+          image_url: uploaded.url,
           image_name: file.name,
         },
         "Image uploaded."
       );
-    };
-    reader.readAsDataURL(file);
-    event.target.value = "";
+    } catch (error) {
+      setMessage(error.message || "Upload failed.");
+    } finally {
+      event.target.value = "";
+    }
   }
 
   async function handleSpreadUpload(event) {
     const file = event.target.files?.[0];
-    if (!file || !selectedSpreadOption || !project) return;
+    if (!file || !selectedSpreadOption) return;
 
     try {
-      const { leftImage, rightImage } = await splitImageIntoSpread(file);
+      const { leftBlob, rightBlob } = await splitImageIntoSpread(file);
 
-      const leftPageId = selectedSpreadOption.leftId;
-      const rightPageId = selectedSpreadOption.rightId;
-
-      updateProject(
-        (current) => ({
-          ...current,
-          pages: current.pages.map((page) => {
-            if (page.id === leftPageId) {
-              return {
-                ...page,
-                image: leftImage,
-                image_name: `${file.name} (left)`,
-                image_fit: "cover",
-                image_scale: 1,
-                image_x: 0,
-                image_y: 0,
-              };
-            }
-
-            if (page.id === rightPageId) {
-              return {
-                ...page,
-                image: rightImage,
-                image_name: `${file.name} (right)`,
-                image_fit: "cover",
-                image_scale: 1,
-                image_x: 0,
-                image_y: 0,
-              };
-            }
-
-            return page;
-          }),
-        }),
-        `Spread image applied to pages ${selectedSpreadOption.leftPageNumber}-${selectedSpreadOption.rightPageNumber}.`
+      const leftUpload = await uploadFileToStorage(
+        projectId,
+        `${selectedSpreadOption.leftPageNumber}-${file.name}-left.png`,
+        leftBlob
       );
 
-      setSelectedPageId(leftPageId);
+      const rightUpload = await uploadFileToStorage(
+        projectId,
+        `${selectedSpreadOption.rightPageNumber}-${file.name}-right.png`,
+        rightBlob
+      );
+
+      await supabase
+        .from("magazine_pages")
+        .update({
+          image_path: leftUpload.path,
+          image_url: leftUpload.url,
+          image_name: `${file.name} (left)`,
+          image_fit: "cover",
+          image_scale: 1,
+          image_x: 0,
+          image_y: 0,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", selectedSpreadOption.leftId);
+
+      await supabase
+        .from("magazine_pages")
+        .update({
+          image_path: rightUpload.path,
+          image_url: rightUpload.url,
+          image_name: `${file.name} (right)`,
+          image_fit: "cover",
+          image_scale: 1,
+          image_x: 0,
+          image_y: 0,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", selectedSpreadOption.rightId);
+
+      await loadProject();
+      setSelectedPageId(selectedSpreadOption.leftId);
+      setMessage(`Spread image applied to pages ${selectedSpreadOption.leftPageNumber}-${selectedSpreadOption.rightPageNumber}.`);
     } catch (error) {
       setMessage(error.message || "Failed to split spread image.");
     } finally {
@@ -466,12 +608,14 @@ export default function MagazineMockupEditor() {
     }
   }
 
-  function clearImage() {
+  async function clearImage() {
     if (!selectedPage) return;
-    updatePage(
+
+    await updatePage(
       selectedPage.id,
       {
-        image: null,
+        image_path: null,
+        image_url: null,
         image_name: null,
         image_scale: 1,
         image_x: 0,
@@ -481,29 +625,29 @@ export default function MagazineMockupEditor() {
     );
   }
 
-  function setFitMode(mode) {
+  async function setFitMode(mode) {
     if (!selectedPage) return;
-    updatePage(selectedPage.id, { image_fit: mode }, "Fit mode updated.");
+    await updatePage(selectedPage.id, { image_fit: mode }, "Fit mode updated.");
   }
 
-  function setScale(value) {
+  async function setScale(value) {
     if (!selectedPage) return;
-    updatePage(selectedPage.id, { image_scale: Number(value) }, "Scale updated.");
+    await updatePage(selectedPage.id, { image_scale: Number(value) }, "Scale updated.");
   }
 
-  function setOffset(axis, value) {
+  async function setOffset(axis, value) {
     if (!selectedPage) return;
     const num = Number(value) || 0;
     if (axis === "x") {
-      updatePage(selectedPage.id, { image_x: num }, "Horizontal offset updated.");
+      await updatePage(selectedPage.id, { image_x: num }, "Horizontal offset updated.");
     } else {
-      updatePage(selectedPage.id, { image_y: num }, "Vertical offset updated.");
+      await updatePage(selectedPage.id, { image_y: num }, "Vertical offset updated.");
     }
   }
 
-  function resetTransform() {
+  async function resetTransform() {
     if (!selectedPage) return;
-    updatePage(
+    await updatePage(
       selectedPage.id,
       {
         image_scale: 1,
@@ -514,26 +658,25 @@ export default function MagazineMockupEditor() {
     );
   }
 
-  function toggleSharing() {
+  async function toggleSharing() {
     if (!project) return;
-    updateProject(
-      (current) => ({
-        ...current,
-        is_public: !current.is_public,
-        share_token: current.share_token || generateToken(),
-      }),
+    await updateProject(
+      {
+        is_public: !project.is_public,
+        share_token: project.share_token || generateToken(),
+      },
       "Sharing updated."
     );
   }
 
-  function regenerateLink() {
+  async function regenerateLink() {
     if (!project) return;
     const nextToken = generateToken();
-    updateProject(
-      (current) => ({
-        ...current,
+
+    await updateProject(
+      {
         share_token: nextToken,
-      }),
+      },
       "New share link generated."
     );
 
@@ -596,13 +739,23 @@ export default function MagazineMockupEditor() {
             background: page.background_color || "#fff",
           }}
         >
-          {page.image ? (
-            <img src={page.image} alt={page.image_name || "Page asset"} style={getImageStyle(page)} />
+          {page.image_url ? (
+            <img src={page.image_url} alt={page.image_name || "Page asset"} style={getImageStyle(page)} />
           ) : (
             <div style={styles.noImageText}>No image on this page</div>
           )}
 
           <div style={styles.pageNumberBadge}>Page {page.page_number}</div>
+        </div>
+      </div>
+    );
+  }
+
+  if (loading) {
+    return (
+      <div style={styles.page}>
+        <div style={styles.centerWrap}>
+          <div style={styles.notFoundCard}>Loading editor...</div>
         </div>
       </div>
     );
@@ -623,9 +776,7 @@ export default function MagazineMockupEditor() {
         <div style={styles.centerWrap}>
           <div style={styles.notFoundCard}>
             <h1 style={styles.notFoundTitle}>Project not found</h1>
-            <p style={styles.notFoundText}>
-              This mockup project does not exist in local storage.
-            </p>
+            <p style={styles.notFoundText}>This project could not be loaded.</p>
             <button style={styles.primaryButton} onClick={goDashboard}>
               Back to Dashboard
             </button>
@@ -742,7 +893,7 @@ export default function MagazineMockupEditor() {
                     <div style={styles.pageListNumber}>Page {page.page_number}</div>
                     <div style={styles.pageListType}>{page.page_type}</div>
                   </div>
-                  <div style={styles.pageListThumb}>{page.image ? "Image" : "Empty"}</div>
+                  <div style={styles.pageListThumb}>{page.image_url ? "Image" : "Empty"}</div>
                 </button>
               ))}
             </div>
