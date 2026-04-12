@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { useParams } from "react-router-dom";
 
 const STORAGE_KEY = "blb_magazine_mockup_projects";
+const VERSION = "preview-v2-debug";
 
 function loadProjects() {
   try {
@@ -63,7 +64,6 @@ export default function MagazineMockupPreview() {
 
   const [project, setProject] = useState(null);
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [direction, setDirection] = useState("next");
 
   useEffect(() => {
     const allProjects = loadProjects();
@@ -80,13 +80,19 @@ export default function MagazineMockupPreview() {
   const currentItem = viewerItems[currentIndex] || null;
 
   function next() {
-    setDirection("next");
     setCurrentIndex((prev) => Math.min(prev + 1, viewerItems.length - 1));
   }
 
   function prev() {
-    setDirection("prev");
     setCurrentIndex((prev) => Math.max(prev - 1, 0));
+  }
+
+  function goToEditor() {
+    window.location.href = `/magazine-mockup/${id}`;
+  }
+
+  function goToDashboard() {
+    window.location.href = `/magazine-mockup`;
   }
 
   function getImageStyle(page) {
@@ -117,33 +123,48 @@ export default function MagazineMockupPreview() {
     };
   }
 
-  function renderFullPage(page, opts = {}) {
-    const { mini = false, flushLeft = false, flushRight = false } = opts;
-
+  function renderMiniPage(page) {
     if (!page) {
       return (
-        <div style={mini ? styles.miniPageShell : styles.pageShell}>
-          <div style={mini ? styles.miniPageEmpty : styles.pageEmpty}>No page</div>
+        <div style={styles.miniShell}>
+          <div style={styles.miniEmpty} />
         </div>
       );
     }
 
-    const outerStyle = mini ? styles.miniPageShell : styles.pageShell;
-    const innerStyle = mini
-      ? styles.miniPageInner
-      : {
-          ...styles.pageInner,
-          borderTopLeftRadius: flushLeft ? 4 : 10,
-          borderBottomLeftRadius: flushLeft ? 4 : 10,
-          borderTopRightRadius: flushRight ? 4 : 10,
-          borderBottomRightRadius: flushRight ? 4 : 10,
-        };
+    return (
+      <div style={styles.miniShell}>
+        <div style={styles.miniInner}>
+          {page.image ? (
+            <img
+              src={page.image}
+              alt={page.image_name || "Page asset"}
+              style={getImageStyle(page)}
+            />
+          ) : (
+            <div style={styles.miniNoImage} />
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  function renderFullPage(page, mode = "spread") {
+    if (!page) {
+      return (
+        <div style={mode === "single" ? styles.singlePageBox : styles.spreadPageBox}>
+          <div style={styles.fullEmpty}>No page</div>
+        </div>
+      );
+    }
+
+    const boxStyle = mode === "single" ? styles.singlePageBox : styles.spreadPageBox;
 
     return (
-      <div style={outerStyle}>
+      <div style={boxStyle}>
         <div
           style={{
-            ...innerStyle,
+            ...styles.fullInner,
             background: page.background_color || "#fff",
           }}
         >
@@ -154,42 +175,10 @@ export default function MagazineMockupPreview() {
               style={getImageStyle(page)}
             />
           ) : (
-            <div style={mini ? styles.miniNoImage : styles.noImageText}>
-              No image on this page
-            </div>
+            <div style={styles.noImageText}>No image on this page</div>
           )}
 
-          {!mini ? (
-            <div style={styles.pageNumberBadge}>Page {page.page_number}</div>
-          ) : null}
-        </div>
-      </div>
-    );
-  }
-
-  function renderSingleStage(page) {
-    if (!page) return null;
-
-    return (
-      <div style={styles.singleStage}>
-        <div style={styles.singleFixedPage}>
-          <div
-            style={{
-              ...styles.singleFixedInner,
-              background: page.background_color || "#fff",
-            }}
-          >
-            {page.image ? (
-              <img
-                src={page.image}
-                alt={page.image_name || "Page asset"}
-                style={getImageStyle(page)}
-              />
-            ) : (
-              <div style={styles.noImageText}>No image on this page</div>
-            )}
-            <div style={styles.pageNumberBadge}>Page {page.page_number}</div>
-          </div>
+          <div style={styles.pageNumberBadge}>Page {page.page_number}</div>
         </div>
       </div>
     );
@@ -202,12 +191,13 @@ export default function MagazineMockupPreview() {
           <div>
             <div style={styles.brand}>Black Label Preview</div>
             <div style={styles.projectTitle}>Preview not found</div>
+            <div style={styles.version}>{VERSION}</div>
           </div>
 
           <div style={styles.topBarRight}>
-            <Link to="/magazine-mockup" style={styles.controlLink}>
-              Back to Dashboard
-            </Link>
+            <button style={styles.controlButton} onClick={goToDashboard}>
+              Dashboard
+            </button>
           </div>
         </div>
 
@@ -221,74 +211,46 @@ export default function MagazineMockupPreview() {
     );
   }
 
-  const totalCount = viewerItems.length;
-  const displayCount = currentIndex + 1;
-
   return (
     <div style={styles.page}>
-      <style>{`
-        @keyframes blbSlideInRight {
-          from { opacity: 0; transform: translateX(26px) scale(0.99); }
-          to { opacity: 1; transform: translateX(0) scale(1); }
-        }
-        @keyframes blbSlideInLeft {
-          from { opacity: 0; transform: translateX(-26px) scale(0.99); }
-          to { opacity: 1; transform: translateX(0) scale(1); }
-        }
-      `}</style>
-
       <div style={styles.topBar}>
         <div>
           <div style={styles.brand}>Black Label Preview</div>
           <div style={styles.projectTitle}>{project.title}</div>
+          <div style={styles.version}>{VERSION}</div>
         </div>
 
         <div style={styles.topBarRight}>
-          <Link to={`/magazine-mockup/${project.id}`} style={styles.controlLink}>
+          <button style={styles.controlButton} onClick={goToEditor}>
             Back to Editor
-          </Link>
-          <Link to="/magazine-mockup" style={styles.controlLink}>
+          </button>
+          <button style={styles.controlButton} onClick={goToDashboard}>
             Dashboard
-          </Link>
+          </button>
         </div>
       </div>
 
       <div style={styles.viewerWrap}>
         <div style={styles.counter}>
-          {displayCount} / {totalCount}
+          {currentIndex + 1} / {viewerItems.length}
           {currentItem?.label ? ` • ${currentItem.label}` : ""}
         </div>
 
-        <div
-          key={`${currentIndex}-${direction}`}
-          style={{
-            ...styles.stage,
-            animation:
-              direction === "next"
-                ? "blbSlideInRight 0.22s ease"
-                : "blbSlideInLeft 0.22s ease",
-          }}
-        >
-          {currentItem?.type === "cover"
-            ? renderSingleStage(currentItem.right)
-            : currentItem?.type === "single"
-              ? renderSingleStage(currentItem.left)
-              : (
-                <div style={styles.trueSpreadWrap}>
-                  <div style={styles.trueSpreadShadow} />
-                  <div style={styles.trueSpread}>
-                    <div style={styles.trueSpreadPageLeft}>
-                      {renderFullPage(currentItem?.left, { flushRight: true })}
-                    </div>
-
-                    <div style={styles.trueSpreadSeam} />
-
-                    <div style={styles.trueSpreadPageRight}>
-                      {renderFullPage(currentItem?.right, { flushLeft: true })}
-                    </div>
-                  </div>
-                </div>
-              )}
+        <div style={styles.stage}>
+          {currentItem?.type === "cover" || currentItem?.type === "single" ? (
+            <div style={styles.singleStage}>
+              {renderFullPage(currentItem.right || currentItem.left, "single")}
+            </div>
+          ) : (
+            <div style={styles.spreadStage}>
+              <div style={styles.spreadShadow} />
+              <div style={styles.spreadFrame}>
+                {renderFullPage(currentItem?.left, "spread")}
+                <div style={styles.seam} />
+                {renderFullPage(currentItem?.right, "spread")}
+              </div>
+            </div>
+          )}
         </div>
 
         <div style={styles.controls}>
@@ -299,11 +261,10 @@ export default function MagazineMockupPreview() {
           >
             Previous
           </button>
-
           <button
             style={styles.controlButton}
             onClick={next}
-            disabled={currentIndex >= totalCount - 1}
+            disabled={currentIndex >= viewerItems.length - 1}
           >
             Next
           </button>
@@ -312,7 +273,7 @@ export default function MagazineMockupPreview() {
         <div style={styles.thumbRow}>
           {viewerItems.map((item, index) => (
             <button
-              key={`viewer-item-${index}`}
+              key={`thumb-${index}`}
               onClick={() => setCurrentIndex(index)}
               style={{
                 ...styles.thumbButton,
@@ -320,14 +281,13 @@ export default function MagazineMockupPreview() {
               }}
             >
               {item.type === "spread" ? (
-                <div style={styles.spreadMiniWrap}>
-                  {renderFullPage(item.left, { mini: true })}
-                  {renderFullPage(item.right, { mini: true })}
+                <div style={styles.miniSpread}>
+                  {renderMiniPage(item.left)}
+                  {renderMiniPage(item.right)}
                 </div>
               ) : (
-                renderFullPage(item.right || item.left, { mini: true })
+                renderMiniPage(item.right || item.left)
               )}
-
               <div style={styles.thumbLabel}>{item.label}</div>
             </button>
           ))}
@@ -353,7 +313,6 @@ const styles = {
     padding: "20px 24px",
     borderBottom: "1px solid #1a1a1a",
     background: "rgba(0,0,0,0.94)",
-    backdropFilter: "blur(12px)",
   },
   brand: {
     fontSize: "14px",
@@ -364,6 +323,11 @@ const styles = {
   projectTitle: {
     fontSize: "30px",
     fontWeight: "bold",
+  },
+  version: {
+    marginTop: "6px",
+    fontSize: "12px",
+    color: "#999",
   },
   topBarRight: {
     display: "flex",
@@ -388,7 +352,6 @@ const styles = {
     background: "radial-gradient(circle at center, #111 0%, #060606 100%)",
     borderRadius: "24px",
     border: "1px solid #161616",
-    boxShadow: "inset 0 1px 0 rgba(255,255,255,0.03)",
   },
 
   singleStage: {
@@ -397,13 +360,51 @@ const styles = {
     alignItems: "center",
     justifyContent: "center",
   },
-  singleFixedPage: {
+  singlePageBox: {
     width: "490px",
     maxWidth: "92%",
     height: "635px",
-    display: "block",
+    flex: "0 0 auto",
   },
-  singleFixedInner: {
+
+  spreadStage: {
+    minHeight: "680px",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    position: "relative",
+  },
+  spreadShadow: {
+    position: "absolute",
+    width: "980px",
+    maxWidth: "92%",
+    height: "635px",
+    background: "rgba(0,0,0,0.35)",
+    filter: "blur(26px)",
+    borderRadius: "24px",
+    transform: "translateY(18px)",
+  },
+  spreadFrame: {
+    position: "relative",
+    zIndex: 2,
+    width: "980px",
+    maxWidth: "92%",
+    height: "635px",
+    display: "grid",
+    gridTemplateColumns: "1fr 2px 1fr",
+  },
+  spreadPageBox: {
+    width: "100%",
+    height: "100%",
+    flex: "0 0 auto",
+  },
+  seam: {
+    width: "2px",
+    background: "linear-gradient(to right, #0f0f0f, #1e1e1e)",
+    boxShadow: "0 0 12px rgba(0,0,0,0.8)",
+  },
+
+  fullInner: {
     position: "relative",
     width: "100%",
     height: "100%",
@@ -412,53 +413,7 @@ const styles = {
     boxShadow: "0 30px 80px rgba(0,0,0,0.5)",
     border: "1px solid #ddd",
   },
-
-  trueSpreadWrap: {
-    minHeight: "680px",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    position: "relative",
-  },
-  trueSpreadShadow: {
-    position: "absolute",
-    width: "980px",
-    maxWidth: "92%",
-    aspectRatio: "17 / 11",
-    background: "rgba(0,0,0,0.35)",
-    filter: "blur(26px)",
-    borderRadius: "24px",
-    transform: "translateY(18px)",
-  },
-  trueSpread: {
-    position: "relative",
-    display: "grid",
-    gridTemplateColumns: "1fr 2px 1fr",
-    alignItems: "stretch",
-    width: "980px",
-    maxWidth: "92%",
-    aspectRatio: "17 / 11",
-    zIndex: 2,
-  },
-  trueSpreadPageLeft: {
-    display: "flex",
-  },
-  trueSpreadPageRight: {
-    display: "flex",
-  },
-  trueSpreadSeam: {
-    width: "2px",
-    background: "linear-gradient(to right, #0f0f0f, #1e1e1e)",
-    boxShadow: "0 0 12px rgba(0,0,0,0.8)",
-    zIndex: 3,
-  },
-
-  pageShell: {
-    width: "100%",
-    height: "100%",
-    display: "flex",
-  },
-  pageEmpty: {
+  fullEmpty: {
     width: "100%",
     height: "100%",
     borderRadius: "12px",
@@ -468,15 +423,6 @@ const styles = {
     justifyContent: "center",
     color: "#666",
     background: "#111",
-  },
-  pageInner: {
-    position: "relative",
-    width: "100%",
-    height: "100%",
-    borderRadius: "10px",
-    overflow: "hidden",
-    boxShadow: "0 30px 80px rgba(0,0,0,0.5)",
-    border: "1px solid #ddd",
   },
   noImageText: {
     position: "absolute",
@@ -515,15 +461,6 @@ const styles = {
     cursor: "pointer",
     fontSize: "14px",
   },
-  controlLink: {
-    padding: "12px 16px",
-    borderRadius: "12px",
-    background: "#171717",
-    border: "1px solid #2a2a2a",
-    color: "#fff",
-    textDecoration: "none",
-    fontSize: "14px",
-  },
 
   thumbRow: {
     marginTop: "22px",
@@ -552,31 +489,31 @@ const styles = {
     color: "#b3b3b3",
     textAlign: "center",
   },
-  spreadMiniWrap: {
+
+  miniSpread: {
     display: "grid",
     gridTemplateColumns: "1fr 1fr",
     gap: "2px",
     width: "152px",
   },
-
-  miniPageShell: {
+  miniShell: {
     width: "100%",
     aspectRatio: "8.5 / 11",
   },
-  miniPageEmpty: {
-    width: "100%",
-    height: "100%",
-    borderRadius: "8px",
-    border: "1px dashed #333",
-    background: "#111",
-  },
-  miniPageInner: {
+  miniInner: {
     position: "relative",
     width: "100%",
     height: "100%",
     borderRadius: "8px",
     overflow: "hidden",
     border: "1px solid #ddd",
+  },
+  miniEmpty: {
+    width: "100%",
+    height: "100%",
+    borderRadius: "8px",
+    border: "1px dashed #333",
+    background: "#111",
   },
   miniNoImage: {
     position: "absolute",
