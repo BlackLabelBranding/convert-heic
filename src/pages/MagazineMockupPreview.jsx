@@ -1,13 +1,28 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState, useRef } from "react";
 import { supabase } from "../lib/customSupabaseClient";
+
+// Helper to group pages into items (Spreads for Desktop, Singles for Mobile)
+function buildItems(pages, isMobile) {
+  if (!pages.length) return [];
+  if (isMobile) {
+    return pages.map(p => ({ type: "single", page: p, label: `Page ${p.page_number}` }));
+  }
+  const items = [{ type: "cover", page: pages[0], label: "Cover" }];
+  for (let i = 1; i < pages.length; i += 2) {
+    const left = pages[i];
+    const right = pages[i + 1];
+    if (left && right) items.push({ type: "spread", left, right, label: `${left.page_number}-${right.page_number}` });
+    else if (left) items.push({ type: "single", page: left, label: `${left.page_number}` });
+  }
+  return items;
+}
 
 export default function MagazineMockupPreview() {
   const [project, setProject] = useState(null);
   const [pages, setPages] = useState([]);
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [isTeam, setIsTeam] = useState(false);
-  const [loading, setLoading] = useState(true);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+  const touchStart = useRef(null);
 
   const projectId = useMemo(() => {
     const parts = window.location.pathname.split("/").filter(Boolean);
@@ -15,132 +30,100 @@ export default function MagazineMockupPreview() {
     return parts[idx + 1] || "";
   }, []);
 
-  // Responsive Listener
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 768);
     window.addEventListener("resize", handleResize);
-    return () => window.removeEventListener("resize", handleResize);
-  }, []);
-
-  useEffect(() => {
     async function load() {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        const { data: member } = await supabase.from("team_members").select("user_id").eq("user_id", user.id).single();
-        setIsTeam(!!member);
-      }
-
       const { data: proj } = await supabase.from("magazine_projects").select("*").eq("id", projectId).single();
       const { data: pgs } = await supabase.from("magazine_pages").select("*").eq("project_id", projectId).order("page_number", { ascending: true });
-
       setProject(proj);
       setPages(pgs || []);
-      setLoading(false);
     }
     load();
+    return () => window.removeEventListener("resize", handleResize);
   }, [projectId]);
 
-  // If mobile, we treat every page as a single item. If desktop, we group into spreads.
-  const viewerItems = useMemo(() => {
-    if (!pages.length) return [];
-    if (isMobile) {
-      return pages.map(p => ({ type: "single", left: p, label: `Page ${p.page_number}` }));
-    }
-    // Desktop Spread Logic
-    const items = [{ type: "cover", left: null, right: pages[0], label: "Cover" }];
-    for (let i = 1; i < pages.length; i += 2) {
-      const left = pages[i];
-      const right = pages[i + 1];
-      if (left && right) items.push({ type: "spread", left, right, label: `${left.page_number}-${right.page_number}` });
-      else if (left) items.push({ type: "single", left, label: `${left.page_number}` });
-    }
-    return items;
-  }, [pages, isMobile]);
-
+  const viewerItems = useMemo(() => buildItems(pages, isMobile), [pages, isMobile]);
   const currentItem = viewerItems[currentIndex];
 
-  function getImageStyle(page) {
-    const fit = page?.image_fit || "cover";
-    const scale = Number(page?.image_scale) || 1;
-    return {
-      position: "absolute",
-      left: "50%",
-      top: "50%",
-      transform: `translate(-50%, -50%) scale(${scale})`,
-      width: "100%",
-      height: "100%",
-      objectFit: fit === "cover" ? "cover" : "contain",
-    };
-  }
+  // --- SWIPE LOGIC ---
+  const onTouchStart = (e) => (touchStart.current = e.targetTouches[0].clientX);
+  const onTouchEnd = (e) => {
+    if (!touchStart.current) return;
+    const touchEnd = e.changedTouches[0].clientX;
+    const distance = touchStart.current - touchEnd;
+    if (distance > 50) setCurrentIndex(prev => Math.min(prev + 1, viewerItems.length - 1)); // Swipe Left
+    if (distance < -50) setCurrentIndex(prev => Math.max(prev - 1, 0)); // Swipe Right
+    touchStart.current = null;
+  };
 
-  if (loading) return <div style={styles.page}>Loading...</div>;
+  const imgStyle = (p) => ({
+    width: "100%", height: "100%", 
+    objectFit: p?.image_fit === "contain" ? "contain" : "cover",
+    transform: `scale(${p?.image_scale || 1})`,
+    pointerEvents: "none"
+  });
+
+  if (!project) return <div style={styles.page}>Loading...</div>;
 
   return (
     <div style={styles.page}>
       <div style={styles.topBar}>
-        <div>
-          <div style={styles.brand}>Black Label</div>
-          <div style={{...styles.projectTitle, fontSize: isMobile ? '18px' : '24px'}}>{project?.title}</div>
-        </div>
-        {isTeam && !isMobile && (
-          <div style={styles.topBarRight}>
-            <button style={styles.controlButton} onClick={() => window.location.href=`/magazine-mockup/${projectId}`}>Editor</button>
-          </div>
-        )}
+        <div style={styles.brand}>Black Label Preview</div>
+        <div style={styles.title}>{project.title}</div>
       </div>
 
-      <div style={{...styles.viewerWrap, padding: isMobile ? "10px" : "24px"}}>
+      <div 
+        style={styles.stage} 
+        onTouchStart={onTouchStart} 
+        onTouchEnd={onTouchEnd}
+      >
         <div style={styles.counter}>{currentIndex + 1} / {viewerItems.length}</div>
-
-        <div style={{...styles.stage, minHeight: isMobile ? "400px" : "600px", padding: isMobile ? "10px" : "28px"}}>
-          {/* MOBILE VIEW or SINGLE PAGE */}
+        
+        <div style={styles.viewContainer}>
           {isMobile || currentItem?.type !== "spread" ? (
-            <div style={styles.singleStage}>
-              <div style={{...styles.pageBox, width: isMobile ? "100%" : "450px", height: isMobile ? "70vh" : "600px"}}>
-                 <div style={styles.fullInner}>
-                    <img src={(currentItem?.right || currentItem?.left)?.image_url} style={getImageStyle(currentItem?.right || currentItem?.left)} />
-                 </div>
-              </div>
+            /* SINGLE PAGE VIEW (Mobile) */
+            <div style={{...styles.pageFrame, width: isMobile ? "90vw" : "500px", height: isMobile ? "75vh" : "700px"}}>
+              <img src={(currentItem?.page || currentItem?.right)?.image_url} style={imgStyle(currentItem?.page || currentItem?.right)} alt="page" />
             </div>
           ) : (
-            /* DESKTOP SPREAD VIEW */
-            <div style={styles.spreadStage}>
-              <div style={styles.spreadFrame}>
-                <div style={{...styles.fullInner, borderTopRightRadius: 0, borderBottomRightRadius: 0}}>
-                  <img src={currentItem.left.image_url} style={getImageStyle(currentItem.left)} />
-                </div>
-                <div style={styles.seam} />
-                <div style={{...styles.fullInner, borderTopLeftRadius: 0, borderBottomLeftRadius: 0}}>
-                  <img src={currentItem.right.image_url} style={getImageStyle(currentItem.right)} />
-                </div>
+            /* SPREAD VIEW (Desktop) */
+            <div style={styles.spreadFrame}>
+              <div style={{...styles.pageFrame, borderTopRightRadius: 0, borderBottomRightRadius: 0}}>
+                <img src={currentItem.left.image_url} style={imgStyle(currentItem.left)} alt="left" />
+              </div>
+              <div style={styles.seam} />
+              <div style={{...styles.pageFrame, borderTopLeftRadius: 0, borderBottomLeftRadius: 0}}>
+                <img src={currentItem.right.image_url} style={imgStyle(currentItem.right)} alt="right" />
               </div>
             </div>
           )}
         </div>
 
-        <div style={styles.controls}>
-          <button style={styles.controlButton} onClick={() => setCurrentIndex(c => Math.max(0, c-1))}>Prev</button>
-          <button style={styles.controlButton} onClick={() => setCurrentIndex(c => Math.min(viewerItems.length-1, c+1))}>Next</button>
-        </div>
+        {!isMobile && (
+           <div style={styles.controls}>
+             <button style={styles.btn} onClick={() => setCurrentIndex(c => Math.max(0, c - 1))}>← Prev</button>
+             <button style={styles.btn} onClick={() => setCurrentIndex(c => Math.min(viewerItems.length - 1, c + 1))}>Next →</button>
+           </div>
+        )}
+        {isMobile && <div style={styles.hint}>← Swipe to flip →</div>}
       </div>
     </div>
   );
 }
 
 const styles = {
-  page: { minHeight: "100vh", background: "#050505", color: "#fff", fontFamily: "sans-serif" },
-  topBar: { display: "flex", justifyContent: "space-between", padding: "15px 20px", background: "#000", borderBottom: "1px solid #111" },
-  brand: { color: "#39ff14", fontSize: "12px", fontWeight: "bold" },
-  projectTitle: { fontWeight: "bold" },
-  viewerWrap: { maxWidth: "1200px", margin: "0 auto" },
-  counter: { textAlign: "center", padding: "10px", color: "#666" },
-  stage: { background: "#0a0a0a", borderRadius: "15px", display: "flex", alignItems: "center", justifyContent: "center" },
-  singleStage: { width: "100%", display: "flex", justifyContent: "center" },
-  spreadStage: { width: "100%", display: "flex", justifyContent: "center" },
-  spreadFrame: { display: "grid", gridTemplateColumns: "1fr 2px 1fr", width: "900px", height: "600px" },
-  pageBox: { position: "relative" },
-  fullInner: { position: "relative", width: "100%", height: "100%", background: "#111", borderRadius: "8px", overflow: "hidden", border: "1px solid #222" },
-  seam: { background: "linear-gradient(to right, rgba(0,0,0,0.5), rgba(0,0,0,0))", width: "2px", zIndex: 5 },
-  controls: { display: "flex", justifyContent: "center", gap: "20px", padding: "20px" },
-  controlButton: { padding: "10px 25px", background: "#111", border: "1px solid #333", color: "#fff", borderRadius: "8px", cursor: "pointer" }
+  page: { minHeight: "100vh", background: "#000", color: "#fff", fontFamily: "sans-serif", overflow: "hidden" },
+  topBar: { padding: "15px", borderBottom: "1px solid #111", textAlign: "center" },
+  brand: { color: "#39ff14", fontSize: "10px", fontWeight: "bold", letterSpacing: "1px" },
+  title: { fontSize: "18px", fontWeight: "bold", marginTop: "4px" },
+  stage: { height: "calc(100vh - 80px)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", position: "relative" },
+  counter: { fontSize: "12px", color: "#555", marginBottom: "10px" },
+  viewContainer: { display: "flex", justifyContent: "center", alignItems: "center", width: "100%" },
+  pageFrame: { position: "relative", background: "#111", borderRadius: "10px", overflow: "hidden", border: "1px solid #222", boxShadow: "0 20px 50px rgba(0,0,0,0.5)" },
+  spreadFrame: { display: "grid", gridTemplateColumns: "1fr 1px 1fr", width: "90%", maxWidth: "1100px", height: "700px" },
+  seam: { background: "rgba(0,0,0,0.4)", width: "1px", zIndex: 10 },
+  controls: { marginTop: "30px", display: "flex", gap: "20px" },
+  btn: { padding: "12px 24px", background: "#111", border: "1px solid #333", color: "#fff", borderRadius: "8px", cursor: "pointer" },
+  hint: { marginTop: "20px", color: "#333", fontSize: "12px", fontStyle: "italic" }
 };
