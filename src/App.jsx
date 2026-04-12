@@ -1,6 +1,8 @@
 import React from "react";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 
+// NOTE: If your folder on GitHub is named "Components", 
+// change the lowercase "c" below to uppercase "C"
 import Header from "./components/Header";
 
 import Home from "./pages/Home";
