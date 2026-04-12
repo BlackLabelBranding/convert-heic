@@ -67,8 +67,17 @@ export default function MagazineMockupPreview() {
   return (
     <div style={styles.page}>
       <div style={styles.topBar}>
-        <div style={styles.brand}>Black Label Preview</div>
-        <div style={styles.title}>{project.title}</div>
+        <div style={styles.headerLeft}>
+          <img 
+            src="https://xopcttkrmjvwdddawdaa.supabase.co/storage/v1/object/public/Logos/blacklabellogoog.png" 
+            alt="Black Label Logo" 
+            style={styles.logo} 
+          />
+          <div style={styles.headerTextWrapper}>
+            <div style={styles.brand}>Black Label Tools</div>
+            <div style={styles.title}>{project.title}</div>
+          </div>
+        </div>
       </div>
 
       <div style={styles.stage} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
@@ -81,17 +90,12 @@ export default function MagazineMockupPreview() {
             </div>
           ) : (
             <div style={styles.spreadFrame}>
-              {/* Left Page */}
               <div style={{...styles.pageFrame, borderTopRightRadius: 0, borderBottomRightRadius: 0, borderRight: 'none'}}>
                 <img src={currentItem.left.image_url} style={imgStyle(currentItem.left)} alt="left" />
               </div>
-              
-              {/* Right Page */}
               <div style={{...styles.pageFrame, borderTopLeftRadius: 0, borderBottomLeftRadius: 0, borderLeft: 'none'}}>
                 <img src={currentItem.right.image_url} style={imgStyle(currentItem.right)} alt="right" />
               </div>
-
-              {/* Seamless Seam Overlay */}
               <div style={styles.seam} />
             </div>
           )}
@@ -111,23 +115,37 @@ export default function MagazineMockupPreview() {
 
 const styles = {
   page: { minHeight: "100vh", background: "#050505", color: "#fff", fontFamily: "sans-serif", overflow: "hidden" },
-  topBar: { padding: "15px", borderBottom: "1px solid #111", textAlign: "center", background: "#000" },
-  brand: { color: "#39ff14", fontSize: "10px", fontWeight: "bold", letterSpacing: "1px", textTransform: "uppercase" },
-  title: { fontSize: "18px", fontWeight: "bold", marginTop: "4px" },
-  stage: { height: "calc(100vh - 80px)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", position: "relative" },
+  topBar: { 
+    padding: "12px 20px", 
+    borderBottom: "1px solid #1a1a1a", 
+    background: "rgba(0,0,0,0.95)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center"
+  },
+  headerLeft: {
+    display: "flex",
+    alignItems: "center",
+    gap: "12px"
+  },
+  logo: {
+    height: "36px",
+    width: "auto"
+  },
+  headerTextWrapper: {
+    display: "flex",
+    flexDirection: "column",
+    justifyContent: "center"
+  },
+  brand: { color: "#39ff14", fontSize: "10px", fontWeight: "bold", letterSpacing: "1.5px", textTransform: "uppercase" },
+  title: { fontSize: "16px", fontWeight: "bold", marginTop: "2px" },
+  stage: { height: "calc(100vh - 75px)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", position: "relative" },
   counter: { fontSize: "12px", color: "#444", marginBottom: "12px" },
   viewContainer: { display: "flex", justifyContent: "center", alignItems: "center", width: "100%" },
   pageFrame: { position: "relative", background: "#111", borderRadius: "10px", overflow: "hidden", border: "1px solid #1f1f1f", boxShadow: "0 20px 60px rgba(0,0,0,0.8)" },
   spreadFrame: { position: "relative", display: "grid", gridTemplateColumns: "1fr 1fr", width: "95%", maxWidth: "1100px", height: "720px" },
   seam: { 
-    position: "absolute", 
-    left: "50%", 
-    top: 0, 
-    bottom: 0, 
-    width: "40px", 
-    transform: "translateX(-50%)", 
-    zIndex: 10, 
-    pointerEvents: "none",
+    position: "absolute", left: "50%", top: 0, bottom: 0, width: "40px", transform: "translateX(-50%)", zIndex: 10, pointerEvents: "none",
     background: "linear-gradient(to right, rgba(0,0,0,0) 0%, rgba(0,0,0,0.2) 48%, rgba(0,0,0,0.4) 50%, rgba(0,0,0,0.2) 52%, rgba(0,0,0,0) 100%)"
   },
   controls: { marginTop: "30px", display: "flex", gap: "20px" },
