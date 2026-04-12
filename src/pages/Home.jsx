@@ -4,6 +4,13 @@ import { Link } from "react-router-dom";
 export default function Home() {
   const tools = [
     {
+      name: "Magazine Mockup",
+      href: "/magazine-mockup",
+      description:
+        "Preview images on realistic magazine pages and generate private share links.",
+      featured: true,
+    },
+    {
       name: "HEIC to JPG",
       href: "/heic-to-jpg",
       description: "Convert iPhone HEIC and HEIF images into JPG files.",
@@ -11,7 +18,8 @@ export default function Home() {
     {
       name: "Banner Calculator",
       href: "/banner-calculator",
-      description: "Quote banners with live material, add-on, and margin pricing.",
+      description:
+        "Quote banners with live material, add-on, and margin pricing.",
     },
     {
       name: "Image Resize",
@@ -59,7 +67,18 @@ export default function Home() {
                 <div style={styles.cardText}>{tool.description}</div>
               </div>
             ) : (
-              <Link key={tool.name} to={tool.href} style={styles.card}>
+              <Link
+                key={tool.name}
+                to={tool.href}
+                style={{
+                  ...styles.card,
+                  ...(tool.featured ? styles.featuredCard : {}),
+                }}
+              >
+                {tool.featured && (
+                  <div style={styles.badge}>NEW</div>
+                )}
+
                 <div style={styles.cardTitle}>{tool.name}</div>
                 <div style={styles.cardText}>{tool.description}</div>
               </Link>
@@ -85,7 +104,6 @@ const styles = {
     display: "flex",
     justifyContent: "space-between",
     alignItems: "center",
-    gap: "20px",
     padding: "18px 24px",
     borderBottom: "1px solid #1f1f1f",
     background: "rgba(0,0,0,0.92)",
@@ -95,7 +113,6 @@ const styles = {
     fontSize: "18px",
     fontWeight: "bold",
     color: "#39ff14",
-    whiteSpace: "nowrap",
   },
   container: {
     maxWidth: "1200px",
@@ -107,8 +124,6 @@ const styles = {
     display: "block",
     margin: "0 auto 20px auto",
     maxWidth: "220px",
-    width: "100%",
-    height: "auto",
   },
   title: {
     fontSize: "42px",
@@ -126,9 +141,10 @@ const styles = {
     display: "grid",
     gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
     gap: "20px",
-    marginTop: "30px",
   },
+
   card: {
+    position: "relative",
     display: "block",
     background: "#111",
     border: "1px solid #222",
@@ -138,8 +154,25 @@ const styles = {
     textDecoration: "none",
     color: "#fff",
     transition: "0.2s ease",
-    boxShadow: "0 0 0 rgba(57,255,20,0)",
   },
+
+  featuredCard: {
+    border: "1px solid #39ff14",
+    boxShadow: "0 0 20px rgba(57,255,20,0.15)",
+  },
+
+  badge: {
+    position: "absolute",
+    top: "12px",
+    right: "12px",
+    background: "#39ff14",
+    color: "#000",
+    fontSize: "10px",
+    fontWeight: "bold",
+    padding: "4px 8px",
+    borderRadius: "6px",
+  },
+
   cardDisabled: {
     background: "#0b0b0b",
     border: "1px solid #1b1b1b",
@@ -148,18 +181,21 @@ const styles = {
     textAlign: "left",
     color: "#666",
   },
+
   cardTitle: {
     fontSize: "20px",
     fontWeight: "bold",
     color: "#39ff14",
     marginBottom: "10px",
   },
+
   cardTitleDisabled: {
     fontSize: "20px",
     fontWeight: "bold",
     color: "#666",
     marginBottom: "10px",
   },
+
   cardText: {
     fontSize: "14px",
     lineHeight: 1.5,
