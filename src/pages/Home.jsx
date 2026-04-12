@@ -42,11 +42,20 @@ export default function Home() {
 
   return (
     <div style={styles.page}>
+      {/* 🔥 BRANDED NAV */}
       <nav style={styles.nav}>
-        <div style={styles.navBrand}>Black Label Tools</div>
+        <div style={styles.navBrandWrap}>
+          <img
+            src="https://xopcttkrmjvwdddawdaa.supabase.co/storage/v1/object/public/Logos/blacklabellogoog.png"
+            alt="Black Label"
+            style={styles.navLogo}
+          />
+          <div style={styles.navBrand}>Black Label Tools</div>
+        </div>
       </nav>
 
       <div style={styles.container}>
+        {/* 🔥 HERO LOGO */}
         <img
           src="https://xopcttkrmjvwdddawdaa.supabase.co/storage/v1/object/public/Logos/blacklabellogoog.png"
           alt="Black Label Branding"
@@ -74,7 +83,7 @@ export default function Home() {
                   ...(tool.featured ? styles.featuredCard : {}),
                 }}
               >
-                {tool.featured ? <div style={styles.badge}>NEW</div> : null}
+                {tool.featured && <div style={styles.badge}>NEW</div>}
                 <div style={styles.cardTitle}>{tool.name}</div>
                 <div style={styles.cardText}>{tool.description}</div>
               </Link>
@@ -93,23 +102,36 @@ const styles = {
     color: "#fff",
     fontFamily: "Arial, sans-serif",
   },
+
+  /* 🔥 NAV */
   nav: {
     position: "sticky",
     top: 0,
     zIndex: 10,
     display: "flex",
-    justifyContent: "space-between",
     alignItems: "center",
-    padding: "18px 24px",
+    padding: "16px 24px",
     borderBottom: "1px solid #1f1f1f",
     background: "rgba(0,0,0,0.92)",
     backdropFilter: "blur(10px)",
+  },
+  navBrandWrap: {
+    display: "flex",
+    alignItems: "center",
+    gap: "12px",
+  },
+  navLogo: {
+    width: "40px",
+    height: "40px",
+    objectFit: "contain",
   },
   navBrand: {
     fontSize: "18px",
     fontWeight: "bold",
     color: "#39ff14",
   },
+
+  /* 🔥 CONTENT */
   container: {
     maxWidth: "1200px",
     margin: "0 auto",
@@ -119,9 +141,8 @@ const styles = {
   logo: {
     display: "block",
     margin: "0 auto 20px auto",
-    maxWidth: "220px",
+    maxWidth: "200px",
     width: "100%",
-    height: "auto",
   },
   title: {
     fontSize: "42px",
@@ -135,11 +156,15 @@ const styles = {
     marginLeft: "auto",
     marginRight: "auto",
   },
+
+  /* 🔥 GRID */
   grid: {
     display: "grid",
     gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
     gap: "20px",
   },
+
+  /* 🔥 CARDS */
   card: {
     position: "relative",
     display: "block",
@@ -154,7 +179,7 @@ const styles = {
   },
   featuredCard: {
     border: "1px solid #39ff14",
-    boxShadow: "0 0 20px rgba(57,255,20,0.15)",
+    boxShadow: "0 0 20px rgba(57,255,20,0.2)",
   },
   badge: {
     position: "absolute",
@@ -167,6 +192,8 @@ const styles = {
     padding: "4px 8px",
     borderRadius: "6px",
   },
+
+  /* 🔥 DISABLED */
   cardDisabled: {
     background: "#0b0b0b",
     border: "1px solid #1b1b1b",
@@ -175,6 +202,8 @@ const styles = {
     textAlign: "left",
     color: "#666",
   },
+
+  /* 🔥 TEXT */
   cardTitle: {
     fontSize: "20px",
     fontWeight: "bold",
