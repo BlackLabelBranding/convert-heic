@@ -1,6 +1,11 @@
 import React from "react";
+import { Link, useLocation } from "react-router-dom";
 
-export default function Header({ title = "Black Label Tools" }) {
+export default function Header() {
+  const location = useLocation();
+
+  const isHome = location.pathname === "/";
+
   return (
     <div style={styles.nav}>
       <div style={styles.left}>
@@ -9,7 +14,16 @@ export default function Header({ title = "Black Label Tools" }) {
           alt="Black Label"
           style={styles.logo}
         />
-        <div style={styles.title}>{title}</div>
+
+        <div style={styles.brand}>Black Label Tools</div>
+      </div>
+
+      <div style={styles.right}>
+        {!isHome && (
+          <Link to="/" style={styles.button}>
+            ← Home
+          </Link>
+        )}
       </div>
     </div>
   );
@@ -17,29 +31,37 @@ export default function Header({ title = "Black Label Tools" }) {
 
 const styles = {
   nav: {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    padding: "16px 24px",
-    borderBottom: "1px solid #1f1f1f",
-    background: "rgba(0,0,0,0.95)",
     position: "sticky",
     top: 0,
     zIndex: 100,
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    padding: "14px 24px",
+    background: "rgba(0,0,0,0.9)",
+    borderBottom: "1px solid #1f1f1f",
+    backdropFilter: "blur(10px)",
   },
   left: {
     display: "flex",
     alignItems: "center",
-    gap: "12px",
+    gap: "10px",
   },
   logo: {
-    width: "42px",
-    height: "42px",
-    objectFit: "contain",
+    height: "32px",
   },
-  title: {
+  brand: {
     color: "#39ff14",
     fontWeight: "bold",
-    fontSize: "18px",
+    fontSize: "16px",
+  },
+  right: {},
+  button: {
+    background: "#39ff14",
+    color: "#000",
+    padding: "8px 14px",
+    borderRadius: "8px",
+    textDecoration: "none",
+    fontWeight: "bold",
   },
 };
