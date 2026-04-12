@@ -1,17 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-
-const STORAGE_KEY = "blb_magazine_mockup_projects";
-
-function loadProjects() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
-}
+import { supabase } from "../lib/customSupabaseClient";
 
 function buildViewerItems(pages) {
   if (!pages.length) return [];
@@ -66,26 +54,36 @@ function getProjectIdFromUrl() {
 
 export default function MagazineMockupPreview() {
   const [project, setProject] = useState(null);
+  const [pages, setPages] = useState([]);
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [direction, setDirection] = useState("next");
 
   const projectId = useMemo(() => getProjectIdFromUrl(), []);
 
   useEffect(() => {
-    const allProjects = loadProjects();
-    const found = allProjects.find((p) => p.id === projectId);
-    setProject(found || null);
+    async function load() {
+      const { data: projectData } = await supabase
+        .from("magazine_projects")
+        .select("*")
+        .eq("id", projectId)
+        .single();
+
+      const { data: pageData } = await supabase
+        .from("magazine_pages")
+        .select("*")
+        .eq("project_id", projectId)
+        .order("page_number", { ascending: true });
+
+      setProject(projectData || null);
+      setPages(pageData || []);
+    }
+
+    load();
   }, [projectId]);
 
-  const viewerItems = useMemo(() => {
-    const pages = Array.isArray(project?.pages) ? project.pages : [];
-    return buildViewerItems(pages);
-  }, [project]);
-
+  const viewerItems = useMemo(() => buildViewerItems(pages), [pages]);
   const currentItem = viewerItems[currentIndex] || null;
 
   function goToEditor() {
-    if (!projectId) return;
     window.location.href = `/magazine-mockup/${projectId}`;
   }
 
@@ -94,12 +92,10 @@ export default function MagazineMockupPreview() {
   }
 
   function next() {
-    setDirection("next");
     setCurrentIndex((prev) => Math.min(prev + 1, viewerItems.length - 1));
   }
 
   function prev() {
-    setDirection("prev");
     setCurrentIndex((prev) => Math.max(prev - 1, 0));
   }
 
@@ -142,15 +138,10 @@ export default function MagazineMockupPreview() {
 
     return (
       <div style={styles.miniShell}>
-        <div
-          style={{
-            ...styles.miniInner,
-            background: page.background_color || "#fff",
-          }}
-        >
-          {page.image ? (
+        <div style={styles.miniInner}>
+          {page.image_url ? (
             <img
-              src={page.image}
+              src={page.image_url}
               alt={page.image_name || "Page asset"}
               style={getImageStyle(page)}
             />
@@ -179,9 +170,9 @@ export default function MagazineMockupPreview() {
             background: page.background_color || "#fff",
           }}
         >
-          {page.image ? (
+          {page.image_url ? (
             <img
-              src={page.image}
+              src={page.image_url}
               alt={page.image_name || "Page asset"}
               style={getImageStyle(page)}
             />
@@ -224,9 +215,9 @@ export default function MagazineMockupPreview() {
             background: page.background_color || "#fff",
           }}
         >
-          {page.image ? (
+          {page.image_url ? (
             <img
-              src={page.image}
+              src={page.image_url}
               alt={page.image_name || "Page asset"}
               style={getImageStyle(page)}
             />
@@ -260,7 +251,7 @@ export default function MagazineMockupPreview() {
           <div style={styles.notFoundCard}>
             <h1 style={styles.notFoundTitle}>Preview not found</h1>
             <p style={styles.notFoundText}>
-              This project could not be loaded from local storage.
+              This project could not be loaded.
             </p>
           </div>
         </div>
@@ -270,17 +261,6 @@ export default function MagazineMockupPreview() {
 
   return (
     <div style={styles.page}>
-      <style>{`
-        @keyframes blbSlideInRight {
-          from { opacity: 0; transform: translateX(20px) scale(0.99); }
-          to { opacity: 1; transform: translateX(0) scale(1); }
-        }
-        @keyframes blbSlideInLeft {
-          from { opacity: 0; transform: translateX(-20px) scale(0.99); }
-          to { opacity: 1; transform: translateX(0) scale(1); }
-        }
-      `}</style>
-
       <div style={styles.topBar}>
         <div>
           <div style={styles.brand}>Black Label Preview</div>
@@ -303,16 +283,7 @@ export default function MagazineMockupPreview() {
           {currentItem?.label ? ` • ${currentItem.label}` : ""}
         </div>
 
-        <div
-          key={`${currentIndex}-${direction}`}
-          style={{
-            ...styles.stage,
-            animation:
-              direction === "next"
-                ? "blbSlideInRight 0.22s ease"
-                : "blbSlideInLeft 0.22s ease",
-          }}
-        >
+        <div style={styles.stage}>
           {currentItem?.type === "cover" || currentItem?.type === "single" ? (
             <div style={styles.singleStage}>
               {renderSinglePage(currentItem.right || currentItem.left)}
@@ -364,7 +335,6 @@ export default function MagazineMockupPreview() {
               ) : (
                 renderMiniPage(item.right || item.left)
               )}
-
               <div style={styles.thumbLabel}>{item.label}</div>
             </button>
           ))}
@@ -425,7 +395,6 @@ const styles = {
     borderRadius: "24px",
     border: "1px solid #161616",
   },
-
   singleStage: {
     minHeight: "680px",
     display: "flex",
@@ -438,7 +407,6 @@ const styles = {
     height: "635px",
     flex: "0 0 auto",
   },
-
   spreadStage: {
     minHeight: "680px",
     display: "flex",
@@ -475,7 +443,6 @@ const styles = {
     background: "linear-gradient(to right, #0f0f0f, #1e1e1e)",
     boxShadow: "0 0 12px rgba(0,0,0,0.8)",
   },
-
   fullInner: {
     position: "relative",
     width: "100%",
@@ -517,7 +484,6 @@ const styles = {
     borderRadius: "999px",
     fontSize: "11px",
   },
-
   controls: {
     display: "flex",
     justifyContent: "center",
@@ -533,7 +499,6 @@ const styles = {
     cursor: "pointer",
     fontSize: "14px",
   },
-
   thumbRow: {
     marginTop: "22px",
     display: "flex",
@@ -561,7 +526,6 @@ const styles = {
     color: "#b3b3b3",
     textAlign: "center",
   },
-
   miniSpread: {
     display: "grid",
     gridTemplateColumns: "1fr 1fr",
@@ -593,7 +557,6 @@ const styles = {
     background:
       "repeating-linear-gradient(45deg, #fafafa, #fafafa 12px, #f2f2f2 12px, #f2f2f2 24px)",
   },
-
   centerWrap: {
     maxWidth: "900px",
     margin: "0 auto",
