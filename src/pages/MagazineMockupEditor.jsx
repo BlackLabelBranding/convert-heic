@@ -49,16 +49,12 @@ function generateToken(length = 24) {
 function clamp(value, min, max) {
   return Math.min(Math.max(value, min), max);
 }
-<Link to={`/magazine-mockup/${project.id}/preview`} style={styles.primaryLinkButton}>
-  Preview Flipbook
-</Link>
 
 export default function MagazineMockupEditor() {
   const { id } = useParams();
   const navigate = useNavigate();
   const fileInputRef = useRef(null);
 
-  const [projects, setProjects] = useState([]);
   const [project, setProject] = useState(null);
   const [selectedPageId, setSelectedPageId] = useState(null);
   const [message, setMessage] = useState("");
@@ -66,8 +62,6 @@ export default function MagazineMockupEditor() {
 
   useEffect(() => {
     const allProjects = loadProjects();
-    setProjects(allProjects);
-
     const found = allProjects.find((p) => p.id === id);
     if (!found) return;
 
@@ -109,7 +103,6 @@ export default function MagazineMockupEditor() {
       p.id === updatedProject.id ? updatedProject : p
     );
     saveProjects(nextProjects);
-    setProjects(nextProjects);
     setProject(updatedProject);
     setMessage(nextMessage);
   }
@@ -156,6 +149,7 @@ export default function MagazineMockupEditor() {
       page_type: "inside",
       background_color: "#ffffff",
       image: null,
+      image_name: null,
       image_fit: "cover",
       image_scale: 1,
       image_x: 0,
@@ -180,9 +174,7 @@ export default function MagazineMockupEditor() {
       return;
     }
 
-    const confirmed = window.confirm(
-      `Delete page ${selectedPage.page_number}?`
-    );
+    const confirmed = window.confirm(`Delete page ${selectedPage.page_number}?`);
     if (!confirmed) return;
 
     const remaining = project.pages
@@ -228,6 +220,38 @@ export default function MagazineMockupEditor() {
     );
   }
 
+  function duplicatePage() {
+    if (!project || !selectedPage) return;
+
+    const pages = [...project.pages].sort((a, b) => a.page_number - b.page_number);
+    const index = pages.findIndex((p) => p.id === selectedPage.id);
+
+    const cloned = {
+      ...selectedPage,
+      id: generateId(),
+      page_number: selectedPage.page_number + 1,
+    };
+
+    const nextPages = [
+      ...pages.slice(0, index + 1),
+      cloned,
+      ...pages.slice(index + 1),
+    ].map((page, i) => ({
+      ...page,
+      page_number: i + 1,
+    }));
+
+    updateProject(
+      (current) => ({
+        ...current,
+        pages: nextPages,
+      }),
+      "Page duplicated."
+    );
+
+    setSelectedPageId(cloned.id);
+  }
+
   function onUploadClick() {
     if (fileInputRef.current) fileInputRef.current.click();
   }
@@ -248,7 +272,6 @@ export default function MagazineMockupEditor() {
       );
     };
     reader.readAsDataURL(file);
-
     event.target.value = "";
   }
 
@@ -339,38 +362,6 @@ export default function MagazineMockupEditor() {
       .writeText(buildShareUrl(project.share_token))
       .then(() => setMessage("Share link copied."))
       .catch(() => setMessage("Could not copy share link."));
-  }
-
-  function duplicatePage() {
-    if (!project || !selectedPage) return;
-
-    const pages = [...project.pages].sort((a, b) => a.page_number - b.page_number);
-    const index = pages.findIndex((p) => p.id === selectedPage.id);
-
-    const cloned = {
-      ...selectedPage,
-      id: generateId(),
-      page_number: selectedPage.page_number + 1,
-    };
-
-    const nextPages = [
-      ...pages.slice(0, index + 1),
-      cloned,
-      ...pages.slice(index + 1),
-    ].map((page, i) => ({
-      ...page,
-      page_number: i + 1,
-    }));
-
-    updateProject(
-      (current) => ({
-        ...current,
-        pages: nextPages,
-      }),
-      "Page duplicated."
-    );
-
-    setSelectedPageId(cloned.id);
   }
 
   function renderPage(page, mini = false) {
@@ -465,7 +456,17 @@ export default function MagazineMockupEditor() {
         </div>
 
         <div style={styles.navActions}>
-          <button style={styles.secondaryButton} onClick={() => navigate("/magazine-mockup")}>
+          <Link
+            to={`/magazine-mockup/${project.id}/preview`}
+            style={styles.primaryLinkButton}
+          >
+            Preview Flipbook
+          </Link>
+
+          <button
+            style={styles.secondaryButton}
+            onClick={() => navigate("/magazine-mockup")}
+          >
             Dashboard
           </button>
         </div>
@@ -783,6 +784,7 @@ const styles = {
   navActions: {
     display: "flex",
     gap: "10px",
+    flexWrap: "wrap",
   },
   backLink: {
     color: "#b3b3b3",
