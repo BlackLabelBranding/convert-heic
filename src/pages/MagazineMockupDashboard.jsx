@@ -1,40 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Helmet } from "react-helmet-async";
-import { motion } from "framer-motion";
-import { supabase } from "@/lib/customSupabaseClient";
 
-import * as Lucide from "lucide-react";
-const {
-  BookOpen,
-  Plus,
-  Search,
-  ExternalLink,
-  Copy,
-  RefreshCcw,
-  Trash2,
-  Eye,
-  EyeOff,
-  FileImage,
-  Clock3,
-  AlertCircle,
-  Loader2,
-} = Lucide;
-
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
-import { Switch } from "@/components/ui/switch";
-
-const ACCENT = "#39ff14";
+const STORAGE_KEY = "blb_magazine_mockup_projects";
 
 const PAGE_PRESETS = [
   { label: "Magazine Standard", width: 2550, height: 3300, dpi: 300 },
@@ -43,14 +10,41 @@ const PAGE_PRESETS = [
   { label: "Tabloid", width: 3300, height: 5100, dpi: 300 },
 ];
 
-function formatDateTime(value) {
+function generateId() {
+  return `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function generateToken(length = 24) {
+  const chars =
+    "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789";
+  let result = "";
+  for (let i = 0; i < length; i += 1) {
+    result += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return result;
+}
+
+function loadProjects() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveProjects(projects) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(projects));
+}
+
+function formatDate(value) {
   if (!value) return "—";
   try {
-    const d = new Date(value);
-    if (Number.isNaN(d.getTime())) return String(value);
-    return d.toLocaleString();
+    return new Date(value).toLocaleString();
   } catch {
-    return String(value);
+    return value;
   }
 }
 
@@ -69,178 +63,15 @@ function relativeTime(value) {
   return `${months}mo ago`;
 }
 
-function generateToken(length = 24) {
-  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789";
-  let result = "";
-  for (let i = 0; i < length; i += 1) {
-    result += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
-  return result;
-}
-
 function buildShareUrl(token) {
   if (!token) return "";
   return `${window.location.origin}/m/${token}`;
 }
 
-function EmptyState({ title, description }) {
-  return (
-    <div className="rounded-2xl border border-white/10 bg-white/5 p-8 text-center">
-      <div className="mx-auto mb-3 w-fit rounded-2xl border border-white/10 bg-black/20 p-3">
-        <AlertCircle className="h-6 w-6 text-gray-300" />
-      </div>
-      <div className="text-lg font-semibold text-white">{title}</div>
-      <div className="mt-1 text-sm text-gray-400">{description}</div>
-    </div>
-  );
-}
-
-function LoadingPill({ label = "Loading..." }) {
-  return (
-    <div className="flex items-center gap-2 text-sm text-gray-300">
-      <Loader2 className="h-4 w-4 animate-spin" />
-      {label}
-    </div>
-  );
-}
-
-function StatTile({ label, value, hint }) {
-  return (
-    <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
-      <div className="text-xs text-gray-400">{label}</div>
-      <div className="mt-1 text-2xl font-semibold text-white">{value}</div>
-      {hint ? <div className="mt-2 text-xs text-gray-500">{hint}</div> : null}
-    </div>
-  );
-}
-
-function ProjectCard({
-  project,
-  pageCount,
-  onCopyLink,
-  onTogglePublic,
-  onRegenerateLink,
-  onDelete,
-  busy,
-}) {
-  const shareUrl = buildShareUrl(project.share_token);
-
-  return (
-    <Card className="rounded-2xl border border-white/10 bg-white/5">
-      <CardHeader className="flex flex-row items-start justify-between gap-4">
-        <div className="min-w-0">
-          <CardTitle className="truncate text-white">{project.title}</CardTitle>
-          <CardDescription className="mt-1 text-gray-400">
-            Updated {relativeTime(project.updated_at || project.created_at)}
-          </CardDescription>
-        </div>
-
-        <Badge className="border border-white/10 bg-white/10 text-gray-200">
-          {project.status || "draft"}
-        </Badge>
-      </CardHeader>
-
-      <CardContent className="space-y-4">
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-          <StatTile label="Pages" value={pageCount} />
-          <StatTile label="Size" value={`${project.page_width}×${project.page_height}`} />
-          <StatTile label="DPI" value={project.dpi || 300} />
-          <StatTile label="Shared" value={project.is_public ? "Yes" : "No"} />
-        </div>
-
-        <div className="rounded-2xl border border-white/10 bg-black/20 p-3">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <div className="text-sm font-medium text-white">Public share link</div>
-              <div className="mt-1 break-all text-xs text-gray-400">
-                {project.is_public && shareUrl ? shareUrl : "Sharing disabled"}
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <Switch
-                checked={!!project.is_public}
-                onCheckedChange={(next) => onTogglePublic(project, next)}
-                disabled={busy}
-              />
-              <span className="text-sm text-gray-300">
-                {project.is_public ? "Public" : "Private"}
-              </span>
-            </div>
-          </div>
-        </div>
-
-        <div className="flex flex-wrap gap-2">
-          <Button asChild className="font-semibold text-black" style={{ background: ACCENT }}>
-            <Link to={`/tools/magazine-mockup/${project.id}`}>
-              <BookOpen className="mr-2 h-4 w-4" />
-              Open Editor
-            </Link>
-          </Button>
-
-          <Button
-            variant="outline"
-            className="border-white/10 bg-white/5 text-white hover:bg-white/10"
-            onClick={() => onCopyLink(project)}
-            disabled={!project.is_public || !project.share_token || busy}
-          >
-            <Copy className="mr-2 h-4 w-4" />
-            Copy Link
-          </Button>
-
-          <Button
-            variant="outline"
-            className="border-white/10 bg-white/5 text-white hover:bg-white/10"
-            onClick={() => onRegenerateLink(project)}
-            disabled={busy}
-          >
-            <RefreshCcw className="mr-2 h-4 w-4" />
-            Regenerate Link
-          </Button>
-
-          {project.is_public && project.share_token ? (
-            <Button
-              asChild
-              variant="outline"
-              className="border-white/10 bg-white/5 text-white hover:bg-white/10"
-            >
-              <a href={shareUrl} target="_blank" rel="noreferrer noopener">
-                <ExternalLink className="mr-2 h-4 w-4" />
-                View Share Page
-              </a>
-            </Button>
-          ) : null}
-
-          <Button
-            variant="outline"
-            className="border-red-500/20 bg-red-500/10 text-red-100 hover:bg-red-500/20"
-            onClick={() => onDelete(project)}
-            disabled={busy}
-          >
-            <Trash2 className="mr-2 h-4 w-4" />
-            Delete
-          </Button>
-        </div>
-
-        <div className="grid grid-cols-1 gap-2 text-xs text-gray-500 md:grid-cols-3">
-          <div>Created: {formatDateTime(project.created_at)}</div>
-          <div>Updated: {formatDateTime(project.updated_at)}</div>
-          <div>Token: {project.share_token || "—"}</div>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
 export default function MagazineMockupDashboard() {
   const navigate = useNavigate();
 
-  const [user, setUser] = useState(null);
   const [projects, setProjects] = useState([]);
-  const [pageCounts, setPageCounts] = useState({});
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [busyProjectId, setBusyProjectId] = useState(null);
   const [search, setSearch] = useState("");
   const [message, setMessage] = useState("");
 
@@ -248,455 +79,774 @@ export default function MagazineMockupDashboard() {
     title: "",
     preset: PAGE_PRESETS[0].label,
     initialPages: 8,
-    coverMode: false,
+    coverMode: true,
   });
 
-  const selectedPreset = useMemo(
-    () => PAGE_PRESETS.find((p) => p.label === form.preset) || PAGE_PRESETS[0],
-    [form.preset]
-  );
+  useEffect(() => {
+    setProjects(loadProjects());
+  }, []);
+
+  const selectedPreset = useMemo(() => {
+    return PAGE_PRESETS.find((p) => p.label === form.preset) || PAGE_PRESETS[0];
+  }, [form.preset]);
 
   const filteredProjects = useMemo(() => {
     const q = search.trim().toLowerCase();
     if (!q) return projects;
     return projects.filter((project) =>
-      [project.title, project.slug, project.status, project.share_token]
+      [
+        project.title,
+        project.status,
+        project.share_token,
+        String(project.page_width),
+        String(project.page_height),
+      ]
         .filter(Boolean)
         .some((value) => String(value).toLowerCase().includes(q))
     );
   }, [projects, search]);
 
-  const totalProjects = projects.length;
-  const sharedProjects = projects.filter((p) => p.is_public).length;
-  const draftProjects = projects.filter((p) => (p.status || "draft") === "draft").length;
-  const totalPages = Object.values(pageCounts).reduce((sum, count) => sum + count, 0);
+  const stats = useMemo(() => {
+    return {
+      totalProjects: projects.length,
+      sharedProjects: projects.filter((p) => p.is_public).length,
+      draftProjects: projects.filter((p) => p.status === "draft").length,
+      totalPages: projects.reduce(
+        (sum, project) => sum + (project.pages?.length || 0),
+        0
+      ),
+    };
+  }, [projects]);
 
-  async function loadDashboard() {
-    setLoading(true);
-    setMessage("");
-
-    try {
-      const {
-        data: { user: currentUser },
-        error: userError,
-      } = await supabase.auth.getUser();
-
-      if (userError || !currentUser) {
-        navigate("/login", { replace: true });
-        return;
-      }
-
-      setUser(currentUser);
-
-      const { data: projectRows, error: projectError } = await supabase
-        .from("mockup_projects")
-        .select("*")
-        .eq("owner_user_id", currentUser.id)
-        .order("updated_at", { ascending: false });
-
-      if (projectError) throw projectError;
-
-      const projectList = projectRows || [];
-      setProjects(projectList);
-
-      if (projectList.length) {
-        const projectIds = projectList.map((p) => p.id);
-        const { data: pageRows, error: pageError } = await supabase
-          .from("mockup_pages")
-          .select("project_id")
-          .in("project_id", projectIds);
-
-        if (pageError) throw pageError;
-
-        const counts = {};
-        for (const row of pageRows || []) {
-          counts[row.project_id] = (counts[row.project_id] || 0) + 1;
-        }
-        setPageCounts(counts);
-      } else {
-        setPageCounts({});
-      }
-    } catch (error) {
-      console.error(error);
-      setMessage(error.message || "Failed to load magazine mockup projects.");
-    } finally {
-      setLoading(false);
-    }
+  function syncProjects(nextProjects) {
+    setProjects(nextProjects);
+    saveProjects(nextProjects);
   }
 
-  useEffect(() => {
-    loadDashboard();
-  }, []);
-
-  async function createProject() {
-    if (!user) return;
+  function createProject() {
     const title = form.title.trim();
     if (!title) {
       setMessage("Project title is required.");
       return;
     }
 
-    setSaving(true);
-    setMessage("");
+    const pageCount = Math.max(1, Number(form.initialPages) || 1);
 
-    try {
-      const slug = title
-        .toLowerCase()
-        .replace(/[^a-z0-9\s-]/g, "")
-        .trim()
-        .replace(/\s+/g, "-")
-        .slice(0, 80);
+    const pages = Array.from({ length: pageCount }, (_, index) => ({
+      id: generateId(),
+      page_number: index + 1,
+      page_type:
+        form.coverMode && index === 0
+          ? "cover"
+          : form.coverMode && index === pageCount - 1
+            ? "back_cover"
+            : "inside",
+      background_color: "#ffffff",
+      image: null,
+      image_fit: "cover",
+      image_scale: 1,
+      image_x: 0,
+      image_y: 0,
+    }));
 
-      const { data: projectRow, error: projectError } = await supabase
-        .from("mockup_projects")
-        .insert({
-          owner_user_id: user.id,
-          title,
-          slug,
-          share_token: generateToken(),
-          is_public: false,
-          status: "draft",
-          page_width: selectedPreset.width,
-          page_height: selectedPreset.height,
-          dpi: selectedPreset.dpi,
-          cover_mode: !!form.coverMode,
-          theme: "magazine",
-        })
-        .select()
-        .single();
+    const project = {
+      id: generateId(),
+      title,
+      status: "draft",
+      share_token: generateToken(),
+      is_public: false,
+      page_width: selectedPreset.width,
+      page_height: selectedPreset.height,
+      dpi: selectedPreset.dpi,
+      cover_mode: !!form.coverMode,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      pages,
+    };
 
-      if (projectError) throw projectError;
-
-      const totalPagesToCreate = Math.max(1, Number(form.initialPages) || 1);
-      const pageRows = Array.from({ length: totalPagesToCreate }, (_, index) => ({
-        project_id: projectRow.id,
-        page_number: index + 1,
-        page_type:
-          index === 0
-            ? "cover"
-            : index === totalPagesToCreate - 1
-              ? "back_cover"
-              : "inside",
-        background_color: "#ffffff",
-      }));
-
-      const { error: pageInsertError } = await supabase
-        .from("mockup_pages")
-        .insert(pageRows);
-
-      if (pageInsertError) throw pageInsertError;
-
-      navigate(`/tools/magazine-mockup/${projectRow.id}`);
-    } catch (error) {
-      console.error(error);
-      setMessage(error.message || "Failed to create project.");
-    } finally {
-      setSaving(false);
-    }
+    const nextProjects = [project, ...projects];
+    syncProjects(nextProjects);
+    setForm({
+      title: "",
+      preset: PAGE_PRESETS[0].label,
+      initialPages: 8,
+      coverMode: true,
+    });
+    setMessage(`Created project "${project.title}".`);
+    navigate(`/magazine-mockup/${project.id}`);
   }
 
-  async function copyShareLink(project) {
-    try {
-      if (!project?.share_token || !project?.is_public) return;
-      await navigator.clipboard.writeText(buildShareUrl(project.share_token));
-      setMessage(`Copied share link for “${project.title}”.`);
-    } catch {
-      setMessage("Could not copy the share link.");
-    }
-  }
-
-  async function togglePublic(project, next) {
-    setBusyProjectId(project.id);
-    setMessage("");
-
-    try {
-      const updates = {
-        is_public: !!next,
+  function togglePublic(projectId) {
+    const nextProjects = projects.map((project) => {
+      if (project.id !== projectId) return project;
+      return {
+        ...project,
+        is_public: !project.is_public,
+        share_token: project.share_token || generateToken(),
         updated_at: new Date().toISOString(),
       };
+    });
+    syncProjects(nextProjects);
+    setMessage("Sharing updated.");
+  }
 
-      if (next && !project.share_token) {
-        updates.share_token = generateToken();
-      }
+  function regenerateLink(projectId) {
+    const nextProjects = projects.map((project) => {
+      if (project.id !== projectId) return project;
+      return {
+        ...project,
+        share_token: generateToken(),
+        updated_at: new Date().toISOString(),
+      };
+    });
+    syncProjects(nextProjects);
 
-      const { error } = await supabase
-        .from("mockup_projects")
-        .update(updates)
-        .eq("id", project.id)
-        .eq("owner_user_id", user.id);
-
-      if (error) throw error;
-
-      await loadDashboard();
-      setMessage(`${next ? "Enabled" : "Disabled"} sharing for “${project.title}”.`);
-    } catch (error) {
-      console.error(error);
-      setMessage(error.message || "Failed to update sharing.");
-    } finally {
-      setBusyProjectId(null);
+    const updated = nextProjects.find((p) => p.id === projectId);
+    if (updated?.share_token) {
+      navigator.clipboard
+        .writeText(buildShareUrl(updated.share_token))
+        .then(() => setMessage("New share link generated and copied."))
+        .catch(() => setMessage("New share link generated."));
+    } else {
+      setMessage("New share link generated.");
     }
   }
 
-  async function regenerateLink(project) {
-    setBusyProjectId(project.id);
-    setMessage("");
-
-    try {
-      const newToken = generateToken();
-      const { error } = await supabase
-        .from("mockup_projects")
-        .update({
-          share_token: newToken,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", project.id)
-        .eq("owner_user_id", user.id);
-
-      if (error) throw error;
-
-      await loadDashboard();
-      await navigator.clipboard.writeText(buildShareUrl(newToken));
-      setMessage(`Generated a new share link for “${project.title}”.`);
-    } catch (error) {
-      console.error(error);
-      setMessage(error.message || "Failed to regenerate link.");
-    } finally {
-      setBusyProjectId(null);
+  function copyLink(project) {
+    if (!project.is_public || !project.share_token) {
+      setMessage("Enable sharing first.");
+      return;
     }
+
+    navigator.clipboard
+      .writeText(buildShareUrl(project.share_token))
+      .then(() => setMessage("Share link copied."))
+      .catch(() => setMessage("Could not copy share link."));
   }
 
-  async function deleteProject(project) {
+  function deleteProject(projectId) {
+    const project = projects.find((p) => p.id === projectId);
     const confirmed = window.confirm(
-      `Delete “${project.title}”? This will remove all pages and layers for this project.`
+      `Delete "${project?.title || "this project"}"?`
     );
     if (!confirmed) return;
 
-    setBusyProjectId(project.id);
-    setMessage("");
-
-    try {
-      const { error } = await supabase
-        .from("mockup_projects")
-        .delete()
-        .eq("id", project.id)
-        .eq("owner_user_id", user.id);
-
-      if (error) throw error;
-
-      await loadDashboard();
-      setMessage(`Deleted “${project.title}”.`);
-    } catch (error) {
-      console.error(error);
-      setMessage(error.message || "Failed to delete project.");
-    } finally {
-      setBusyProjectId(null);
-    }
+    const nextProjects = projects.filter((project) => project.id !== projectId);
+    syncProjects(nextProjects);
+    setMessage("Project deleted.");
   }
 
   return (
-    <>
-      <Helmet>
-        <title>Magazine Mockup | Black Label Tools</title>
-        <meta
-          name="description"
-          content="Create, manage, and share magazine mockup projects for Black Label Tools."
-        />
-      </Helmet>
+    <div style={styles.page}>
+      <nav style={styles.nav}>
+        <div style={styles.navLeft}>
+          <Link to="/" style={styles.backLink}>
+            ← Back
+          </Link>
+          <div style={styles.navBrand}>Magazine Mockup</div>
+        </div>
+      </nav>
 
-      <motion.div
-        initial={{ opacity: 0, y: 14 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.3 }}
-        className="space-y-6"
-      >
-        <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
-          <div>
-            <div className="flex items-center gap-3">
-              <div
-                className="rounded-2xl border p-3"
-                style={{ borderColor: `${ACCENT}55`, background: `${ACCENT}14` }}
-              >
-                <BookOpen className="h-6 w-6" style={{ color: ACCENT }} />
-              </div>
-              <div>
-                <h1 className="text-3xl font-bold text-white md:text-4xl">Magazine Mockup</h1>
-                <p className="text-gray-400">
-                  Build flipbook-style magazine previews and generate safe share links.
-                </p>
-              </div>
+      <div style={styles.container}>
+        <div style={styles.hero}>
+          <h1 style={styles.title}>Magazine Mockup</h1>
+          <p style={styles.subtitle}>
+            Create mockup projects, organize pages, and generate private share
+            links.
+          </p>
+        </div>
+
+        <div style={styles.statsGrid}>
+          <div style={styles.statCard}>
+            <div style={styles.statLabel}>Projects</div>
+            <div style={styles.statValue}>{stats.totalProjects}</div>
+          </div>
+          <div style={styles.statCard}>
+            <div style={styles.statLabel}>Shared</div>
+            <div style={styles.statValue}>{stats.sharedProjects}</div>
+          </div>
+          <div style={styles.statCard}>
+            <div style={styles.statLabel}>Drafts</div>
+            <div style={styles.statValue}>{stats.draftProjects}</div>
+          </div>
+          <div style={styles.statCard}>
+            <div style={styles.statLabel}>Pages</div>
+            <div style={styles.statValue}>{stats.totalPages}</div>
+          </div>
+        </div>
+
+        <div style={styles.layout}>
+          <div style={styles.panel}>
+            <div style={styles.panelTitle}>New Project</div>
+            <div style={styles.panelText}>
+              Start a new magazine preview project.
             </div>
-          </div>
 
-          <div className="flex flex-wrap gap-2">
-            <Button
-              variant="outline"
-              className="border-white/10 bg-white/5 text-white hover:bg-white/10"
-              onClick={loadDashboard}
-              disabled={loading}
-            >
-              <RefreshCcw className="mr-2 h-4 w-4" />
-              Refresh
-            </Button>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
-          <StatTile label="Projects" value={totalProjects} hint="All mockup projects" />
-          <StatTile label="Shared" value={sharedProjects} hint="Public share links enabled" />
-          <StatTile label="Drafts" value={draftProjects} hint="Still being built" />
-          <StatTile label="Pages" value={totalPages} hint="Across all projects" />
-        </div>
-
-        <div className="grid grid-cols-1 gap-6 xl:grid-cols-[380px,1fr]">
-          <Card className="rounded-2xl border border-white/10 bg-white/5">
-            <CardHeader>
-              <CardTitle className="text-white">New Project</CardTitle>
-              <CardDescription className="text-gray-400">
-                Create a private magazine mockup project and jump straight into the editor.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="project-title" className="text-gray-200">
-                  Project title
-                </Label>
-                <Input
-                  id="project-title"
-                  value={form.title}
-                  onChange={(e) => setForm((prev) => ({ ...prev, title: e.target.value }))}
-                  placeholder="Spring issue mockup"
-                  className="border-white/10 bg-black/20 text-white placeholder:text-gray-500"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="preset" className="text-gray-200">
-                  Size preset
-                </Label>
-                <select
-                  id="preset"
-                  value={form.preset}
-                  onChange={(e) => setForm((prev) => ({ ...prev, preset: e.target.value }))}
-                  className="flex h-10 w-full rounded-md border border-white/10 bg-black/20 px-3 py-2 text-sm text-white"
-                >
-                  {PAGE_PRESETS.map((preset) => (
-                    <option key={preset.label} value={preset.label} className="bg-neutral-900">
-                      {preset.label} — {preset.width} × {preset.height} @ {preset.dpi}dpi
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="initial-pages" className="text-gray-200">
-                  Starting page count
-                </Label>
-                <Input
-                  id="initial-pages"
-                  type="number"
-                  min={1}
-                  max={100}
-                  value={form.initialPages}
-                  onChange={(e) =>
-                    setForm((prev) => ({ ...prev, initialPages: Number(e.target.value) || 1 }))
-                  }
-                  className="border-white/10 bg-black/20 text-white placeholder:text-gray-500"
-                />
-              </div>
-
-              <div className="flex items-center justify-between rounded-2xl border border-white/10 bg-black/20 p-3">
-                <div>
-                  <div className="text-sm font-medium text-white">Enable cover mode</div>
-                  <div className="text-xs text-gray-400">
-                    Marks the first and last pages as cover pages.
-                  </div>
-                </div>
-                <Switch
-                  checked={form.coverMode}
-                  onCheckedChange={(next) => setForm((prev) => ({ ...prev, coverMode: !!next }))}
-                />
-              </div>
-
-              <div className="rounded-2xl border border-white/10 bg-black/20 p-4 text-sm">
-                <div className="mb-2 font-medium text-white">Preset summary</div>
-                <div className="space-y-1 text-gray-400">
-                  <div>Width: {selectedPreset.width}px</div>
-                  <div>Height: {selectedPreset.height}px</div>
-                  <div>DPI: {selectedPreset.dpi}</div>
-                </div>
-              </div>
-
-              <Button
-                onClick={createProject}
-                disabled={saving || loading}
-                className="w-full font-semibold text-black"
-                style={{ background: ACCENT }}
-              >
-                {saving ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Creating Project...
-                  </>
-                ) : (
-                  <>
-                    <Plus className="mr-2 h-4 w-4" />
-                    Create Project
-                  </>
-                )}
-              </Button>
-            </CardContent>
-          </Card>
-
-          <div className="space-y-4">
-            <Card className="rounded-2xl border border-white/10 bg-white/5">
-              <CardContent className="pt-6">
-                <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                  <div className="relative w-full md:max-w-md">
-                    <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-500" />
-                    <Input
-                      value={search}
-                      onChange={(e) => setSearch(e.target.value)}
-                      placeholder="Search projects"
-                      className="border-white/10 bg-black/20 pl-9 text-white placeholder:text-gray-500"
-                    />
-                  </div>
-
-                  {loading ? <LoadingPill label="Loading projects..." /> : null}
-                </div>
-              </CardContent>
-            </Card>
-
-            {message ? (
-              <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-gray-300">
-                {message}
-              </div>
-            ) : null}
-
-            {loading ? null : filteredProjects.length === 0 ? (
-              <EmptyState
-                title="No mockup projects yet"
-                description="Create your first project on the left, then start building magazine spreads."
+            <div style={styles.field}>
+              <label style={styles.label}>Project title</label>
+              <input
+                style={styles.input}
+                type="text"
+                placeholder="April issue mockup"
+                value={form.title}
+                onChange={(e) =>
+                  setForm((prev) => ({ ...prev, title: e.target.value }))
+                }
               />
-            ) : (
-              <div className="space-y-4">
-                {filteredProjects.map((project) => (
-                  <ProjectCard
-                    key={project.id}
-                    project={project}
-                    pageCount={pageCounts[project.id] || 0}
-                    onCopyLink={copyShareLink}
-                    onTogglePublic={togglePublic}
-                    onRegenerateLink={regenerateLink}
-                    onDelete={deleteProject}
-                    busy={busyProjectId === project.id}
-                  />
+            </div>
+
+            <div style={styles.field}>
+              <label style={styles.label}>Size preset</label>
+              <select
+                style={styles.input}
+                value={form.preset}
+                onChange={(e) =>
+                  setForm((prev) => ({ ...prev, preset: e.target.value }))
+                }
+              >
+                {PAGE_PRESETS.map((preset) => (
+                  <option key={preset.label} value={preset.label}>
+                    {preset.label} — {preset.width} × {preset.height} @{" "}
+                    {preset.dpi}dpi
+                  </option>
                 ))}
+              </select>
+            </div>
+
+            <div style={styles.field}>
+              <label style={styles.label}>Starting page count</label>
+              <input
+                style={styles.input}
+                type="number"
+                min="1"
+                max="100"
+                value={form.initialPages}
+                onChange={(e) =>
+                  setForm((prev) => ({
+                    ...prev,
+                    initialPages: Number(e.target.value) || 1,
+                  }))
+                }
+              />
+            </div>
+
+            <div style={styles.toggleRow}>
+              <div>
+                <div style={styles.toggleTitle}>Cover mode</div>
+                <div style={styles.toggleText}>
+                  First and last pages become cover pages.
+                </div>
+              </div>
+
+              <input
+                type="checkbox"
+                checked={form.coverMode}
+                onChange={(e) =>
+                  setForm((prev) => ({
+                    ...prev,
+                    coverMode: e.target.checked,
+                  }))
+                }
+              />
+            </div>
+
+            <div style={styles.summaryBox}>
+              <div style={styles.summaryTitle}>Preset Summary</div>
+              <div style={styles.summaryText}>Width: {selectedPreset.width}px</div>
+              <div style={styles.summaryText}>
+                Height: {selectedPreset.height}px
+              </div>
+              <div style={styles.summaryText}>DPI: {selectedPreset.dpi}</div>
+            </div>
+
+            <button style={styles.primaryButton} onClick={createProject}>
+              + Create Project
+            </button>
+          </div>
+
+          <div style={styles.rightCol}>
+            <div style={styles.searchBar}>
+              <input
+                style={styles.input}
+                type="text"
+                placeholder="Search projects"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+            </div>
+
+            {message ? <div style={styles.message}>{message}</div> : null}
+
+            {filteredProjects.length === 0 ? (
+              <div style={styles.emptyCard}>
+                <div style={styles.emptyTitle}>No projects yet</div>
+                <div style={styles.emptyText}>
+                  Create your first magazine mockup project to get started.
+                </div>
+              </div>
+            ) : (
+              <div style={styles.projectList}>
+                {filteredProjects.map((project) => {
+                  const shareUrl = buildShareUrl(project.share_token);
+
+                  return (
+                    <div key={project.id} style={styles.projectCard}>
+                      <div style={styles.projectHeader}>
+                        <div>
+                          <div style={styles.projectTitle}>{project.title}</div>
+                          <div style={styles.projectMeta}>
+                            Updated {relativeTime(project.updated_at)}
+                          </div>
+                        </div>
+
+                        <div style={styles.statusBadge}>
+                          {project.status || "draft"}
+                        </div>
+                      </div>
+
+                      <div style={styles.projectStats}>
+                        <div style={styles.projectStatBox}>
+                          <div style={styles.projectStatLabel}>Pages</div>
+                          <div style={styles.projectStatValue}>
+                            {project.pages?.length || 0}
+                          </div>
+                        </div>
+
+                        <div style={styles.projectStatBox}>
+                          <div style={styles.projectStatLabel}>Size</div>
+                          <div style={styles.projectStatValueSmall}>
+                            {project.page_width} × {project.page_height}
+                          </div>
+                        </div>
+
+                        <div style={styles.projectStatBox}>
+                          <div style={styles.projectStatLabel}>DPI</div>
+                          <div style={styles.projectStatValue}>{project.dpi}</div>
+                        </div>
+
+                        <div style={styles.projectStatBox}>
+                          <div style={styles.projectStatLabel}>Shared</div>
+                          <div style={styles.projectStatValue}>
+                            {project.is_public ? "Yes" : "No"}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div style={styles.shareBox}>
+                        <div style={styles.shareTitle}>Public share link</div>
+                        <div style={styles.shareText}>
+                          {project.is_public ? shareUrl : "Sharing disabled"}
+                        </div>
+                      </div>
+
+                      <div style={styles.toggleRow}>
+                        <div>
+                          <div style={styles.toggleTitle}>
+                            {project.is_public ? "Public" : "Private"}
+                          </div>
+                          <div style={styles.toggleText}>
+                            Toggle share access for this project.
+                          </div>
+                        </div>
+
+                        <input
+                          type="checkbox"
+                          checked={!!project.is_public}
+                          onChange={() => togglePublic(project.id)}
+                        />
+                      </div>
+
+                      <div style={styles.buttonRow}>
+                        <Link
+                          to={`/magazine-mockup/${project.id}`}
+                          style={styles.primaryLinkButton}
+                        >
+                          Open Editor
+                        </Link>
+
+                        <button
+                          style={styles.secondaryButton}
+                          onClick={() => copyLink(project)}
+                        >
+                          Copy Link
+                        </button>
+
+                        <button
+                          style={styles.secondaryButton}
+                          onClick={() => regenerateLink(project.id)}
+                        >
+                          Regenerate Link
+                        </button>
+
+                        {project.is_public ? (
+                          <a
+                            href={shareUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            style={styles.secondaryLinkButton}
+                          >
+                            View Share Page
+                          </a>
+                        ) : null}
+
+                        <button
+                          style={styles.deleteButton}
+                          onClick={() => deleteProject(project.id)}
+                        >
+                          Delete
+                        </button>
+                      </div>
+
+                      <div style={styles.footerMeta}>
+                        <div>Created: {formatDate(project.created_at)}</div>
+                        <div>Updated: {formatDate(project.updated_at)}</div>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>
         </div>
-      </motion.div>
-    </>
+      </div>
+    </div>
   );
 }
-// deploy
+
+const styles = {
+  page: {
+    minHeight: "100vh",
+    background: "#000",
+    color: "#fff",
+    fontFamily: "Arial, sans-serif",
+  },
+  nav: {
+    position: "sticky",
+    top: 0,
+    zIndex: 10,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    padding: "18px 24px",
+    borderBottom: "1px solid #1f1f1f",
+    background: "rgba(0,0,0,0.92)",
+    backdropFilter: "blur(10px)",
+  },
+  navLeft: {
+    display: "flex",
+    alignItems: "center",
+    gap: "16px",
+    flexWrap: "wrap",
+  },
+  backLink: {
+    color: "#b3b3b3",
+    textDecoration: "none",
+    fontSize: "14px",
+  },
+  navBrand: {
+    fontSize: "18px",
+    fontWeight: "bold",
+    color: "#39ff14",
+  },
+  container: {
+    maxWidth: "1300px",
+    margin: "0 auto",
+    padding: "40px 20px 70px",
+  },
+  hero: {
+    marginBottom: "30px",
+  },
+  title: {
+    fontSize: "42px",
+    marginBottom: "10px",
+  },
+  subtitle: {
+    color: "#b3b3b3",
+    fontSize: "18px",
+    maxWidth: "760px",
+    lineHeight: 1.5,
+  },
+  statsGrid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+    gap: "16px",
+    marginBottom: "24px",
+  },
+  statCard: {
+    background: "#111",
+    border: "1px solid #222",
+    borderRadius: "18px",
+    padding: "18px",
+  },
+  statLabel: {
+    fontSize: "12px",
+    color: "#999",
+    marginBottom: "6px",
+  },
+  statValue: {
+    fontSize: "28px",
+    fontWeight: "bold",
+    color: "#fff",
+  },
+  layout: {
+    display: "grid",
+    gridTemplateColumns: "360px 1fr",
+    gap: "24px",
+    alignItems: "start",
+  },
+  panel: {
+    background: "#111",
+    border: "1px solid #222",
+    borderRadius: "20px",
+    padding: "24px",
+  },
+  panelTitle: {
+    fontSize: "24px",
+    fontWeight: "bold",
+    marginBottom: "8px",
+  },
+  panelText: {
+    color: "#b3b3b3",
+    fontSize: "14px",
+    lineHeight: 1.5,
+    marginBottom: "20px",
+  },
+  field: {
+    marginBottom: "16px",
+  },
+  label: {
+    display: "block",
+    fontSize: "13px",
+    color: "#ddd",
+    marginBottom: "8px",
+  },
+  input: {
+    width: "100%",
+    padding: "12px 14px",
+    borderRadius: "12px",
+    border: "1px solid #2a2a2a",
+    background: "#0b0b0b",
+    color: "#fff",
+    fontSize: "14px",
+    boxSizing: "border-box",
+  },
+  toggleRow: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: "16px",
+    padding: "14px",
+    border: "1px solid #222",
+    borderRadius: "16px",
+    background: "#0b0b0b",
+    marginBottom: "16px",
+  },
+  toggleTitle: {
+    fontSize: "14px",
+    fontWeight: "bold",
+    color: "#fff",
+    marginBottom: "4px",
+  },
+  toggleText: {
+    fontSize: "12px",
+    color: "#999",
+    lineHeight: 1.4,
+  },
+  summaryBox: {
+    padding: "16px",
+    borderRadius: "16px",
+    background: "#0b0b0b",
+    border: "1px solid #222",
+    marginBottom: "18px",
+  },
+  summaryTitle: {
+    fontSize: "14px",
+    fontWeight: "bold",
+    marginBottom: "8px",
+    color: "#fff",
+  },
+  summaryText: {
+    fontSize: "13px",
+    color: "#b3b3b3",
+    lineHeight: 1.6,
+  },
+  primaryButton: {
+    width: "100%",
+    padding: "14px 16px",
+    borderRadius: "14px",
+    border: "none",
+    background: "#39ff14",
+    color: "#000",
+    fontWeight: "bold",
+    fontSize: "15px",
+    cursor: "pointer",
+  },
+  rightCol: {
+    minWidth: 0,
+  },
+  searchBar: {
+    background: "#111",
+    border: "1px solid #222",
+    borderRadius: "18px",
+    padding: "16px",
+    marginBottom: "16px",
+  },
+  message: {
+    marginBottom: "16px",
+    background: "#111",
+    border: "1px solid #222",
+    borderRadius: "14px",
+    padding: "14px",
+    color: "#d9d9d9",
+    fontSize: "14px",
+  },
+  emptyCard: {
+    background: "#111",
+    border: "1px solid #222",
+    borderRadius: "20px",
+    padding: "32px",
+    textAlign: "center",
+  },
+  emptyTitle: {
+    fontSize: "22px",
+    fontWeight: "bold",
+    marginBottom: "10px",
+  },
+  emptyText: {
+    color: "#b3b3b3",
+    fontSize: "14px",
+  },
+  projectList: {
+    display: "grid",
+    gap: "18px",
+  },
+  projectCard: {
+    background: "#111",
+    border: "1px solid #222",
+    borderRadius: "20px",
+    padding: "22px",
+  },
+  projectHeader: {
+    display: "flex",
+    justifyContent: "space-between",
+    gap: "16px",
+    alignItems: "flex-start",
+    marginBottom: "18px",
+    flexWrap: "wrap",
+  },
+  projectTitle: {
+    fontSize: "22px",
+    fontWeight: "bold",
+    color: "#fff",
+    marginBottom: "6px",
+  },
+  projectMeta: {
+    fontSize: "13px",
+    color: "#999",
+  },
+  statusBadge: {
+    padding: "6px 10px",
+    borderRadius: "999px",
+    background: "#1a1a1a",
+    border: "1px solid #2a2a2a",
+    color: "#ddd",
+    fontSize: "12px",
+    textTransform: "capitalize",
+  },
+  projectStats: {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
+    gap: "12px",
+    marginBottom: "16px",
+  },
+  projectStatBox: {
+    background: "#0b0b0b",
+    border: "1px solid #222",
+    borderRadius: "14px",
+    padding: "14px",
+  },
+  projectStatLabel: {
+    fontSize: "12px",
+    color: "#999",
+    marginBottom: "6px",
+  },
+  projectStatValue: {
+    fontSize: "20px",
+    fontWeight: "bold",
+    color: "#fff",
+  },
+  projectStatValueSmall: {
+    fontSize: "14px",
+    fontWeight: "bold",
+    color: "#fff",
+    lineHeight: 1.4,
+  },
+  shareBox: {
+    background: "#0b0b0b",
+    border: "1px solid #222",
+    borderRadius: "14px",
+    padding: "14px",
+    marginBottom: "16px",
+  },
+  shareTitle: {
+    fontSize: "13px",
+    fontWeight: "bold",
+    color: "#fff",
+    marginBottom: "8px",
+  },
+  shareText: {
+    fontSize: "12px",
+    color: "#9fdc90",
+    wordBreak: "break-all",
+    lineHeight: 1.5,
+  },
+  buttonRow: {
+    display: "flex",
+    flexWrap: "wrap",
+    gap: "10px",
+    marginTop: "8px",
+    marginBottom: "16px",
+  },
+  primaryLinkButton: {
+    padding: "12px 14px",
+    borderRadius: "12px",
+    background: "#39ff14",
+    color: "#000",
+    fontWeight: "bold",
+    textDecoration: "none",
+    fontSize: "14px",
+  },
+  secondaryButton: {
+    padding: "12px 14px",
+    borderRadius: "12px",
+    background: "#1a1a1a",
+    border: "1px solid #2a2a2a",
+    color: "#fff",
+    fontSize: "14px",
+    cursor: "pointer",
+  },
+  secondaryLinkButton: {
+    padding: "12px 14px",
+    borderRadius: "12px",
+    background: "#1a1a1a",
+    border: "1px solid #2a2a2a",
+    color: "#fff",
+    fontSize: "14px",
+    textDecoration: "none",
+  },
+  deleteButton: {
+    padding: "12px 14px",
+    borderRadius: "12px",
+    background: "#220909",
+    border: "1px solid #4a1b1b",
+    color: "#ffb3b3",
+    fontSize: "14px",
+    cursor: "pointer",
+  },
+  footerMeta: {
+    display: "grid",
+    gap: "6px",
+    color: "#777",
+    fontSize: "12px",
+  },
+};
