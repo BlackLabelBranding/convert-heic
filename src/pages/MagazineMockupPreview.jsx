@@ -77,7 +77,6 @@ export default function MagazineMockupPreview() {
   }, [project]);
 
   const viewerItems = useMemo(() => buildViewerItems(sortedPages), [sortedPages]);
-
   const currentItem = viewerItems[currentIndex] || null;
 
   function next() {
@@ -170,16 +169,22 @@ export default function MagazineMockupPreview() {
     return (
       <div style={styles.page}>
         <div style={styles.topBar}>
-          <div style={styles.brand}>Black Label Preview</div>
+          <div>
+            <div style={styles.brand}>Black Label Preview</div>
+            <div style={styles.projectTitle}>Preview not found</div>
+          </div>
+
+          <div style={styles.topBarRight}>
+            <Link to="/magazine-mockup" style={styles.controlLink}>
+              Back to Dashboard
+            </Link>
+          </div>
         </div>
 
         <div style={styles.centerWrap}>
           <div style={styles.notFoundCard}>
             <h1 style={styles.notFoundTitle}>Preview not found</h1>
             <p style={styles.notFoundText}>This project could not be loaded.</p>
-            <Link to="/magazine-mockup" style={styles.primaryLink}>
-              Back to Dashboard
-            </Link>
           </div>
         </div>
       </div>
@@ -212,6 +217,9 @@ export default function MagazineMockupPreview() {
           <Link to={`/magazine-mockup/${project.id}`} style={styles.controlLink}>
             Back to Editor
           </Link>
+          <Link to="/magazine-mockup" style={styles.controlLink}>
+            Dashboard
+          </Link>
         </div>
       </div>
 
@@ -232,12 +240,16 @@ export default function MagazineMockupPreview() {
           }}
         >
           {currentItem?.type === "cover" ? (
-            <div style={styles.coverStage}>
-              {renderPage(currentItem.right)}
+            <div style={styles.singleStage}>
+              <div style={styles.singleStageInner}>
+                {renderPage(currentItem.right)}
+              </div>
             </div>
           ) : currentItem?.type === "single" ? (
-            <div style={styles.coverStage}>
-              {renderPage(currentItem.left)}
+            <div style={styles.singleStage}>
+              <div style={styles.singleStageInner}>
+                {renderPage(currentItem.left)}
+              </div>
             </div>
           ) : (
             <div style={styles.trueSpreadWrap}>
@@ -356,12 +368,20 @@ const styles = {
     border: "1px solid #161616",
     boxShadow: "inset 0 1px 0 rgba(255,255,255,0.03)",
   },
-  coverStage: {
+
+  singleStage: {
     minHeight: "680px",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
   },
+  singleStageInner: {
+    width: "490px",
+    maxWidth: "92%",
+    aspectRatio: "8.5 / 11",
+    display: "flex",
+  },
+
   trueSpreadWrap: {
     minHeight: "680px",
     display: "flex",
@@ -401,10 +421,10 @@ const styles = {
     boxShadow: "0 0 12px rgba(0,0,0,0.8)",
     zIndex: 3,
   },
+
   pageShell: {
     width: "100%",
-    maxWidth: "490px",
-    aspectRatio: "8.5 / 11",
+    height: "100%",
     display: "flex",
   },
   pageEmpty: {
@@ -448,6 +468,7 @@ const styles = {
     borderRadius: "999px",
     fontSize: "11px",
   },
+
   controls: {
     display: "flex",
     justifyContent: "center",
@@ -472,6 +493,7 @@ const styles = {
     textDecoration: "none",
     fontSize: "14px",
   },
+
   thumbRow: {
     marginTop: "22px",
     display: "flex",
@@ -505,6 +527,7 @@ const styles = {
     gap: "2px",
     width: "152px",
   },
+
   miniPageShell: {
     width: "100%",
     aspectRatio: "8.5 / 11",
@@ -530,6 +553,7 @@ const styles = {
     background:
       "repeating-linear-gradient(45deg, #fafafa, #fafafa 12px, #f2f2f2 12px, #f2f2f2 24px)",
   },
+
   centerWrap: {
     maxWidth: "900px",
     margin: "0 auto",
