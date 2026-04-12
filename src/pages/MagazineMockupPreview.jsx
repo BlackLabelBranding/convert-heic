@@ -76,9 +76,7 @@ export default function MagazineMockupPreview() {
     return [...project.pages].sort((a, b) => a.page_number - b.page_number);
   }, [project]);
 
-  const viewerItems = useMemo(() => {
-    return buildViewerItems(sortedPages);
-  }, [sortedPages]);
+  const viewerItems = useMemo(() => buildViewerItems(sortedPages), [sortedPages]);
 
   const currentItem = viewerItems[currentIndex] || null;
 
@@ -95,9 +93,20 @@ export default function MagazineMockupPreview() {
   function renderPage(page, opts = {}) {
     const { mini = false, flushLeft = false, flushRight = false } = opts;
 
+    const shellStyle = mini ? styles.miniPageShell : styles.pageShell;
+    const innerStyle = mini
+      ? styles.miniPageInner
+      : {
+          ...styles.pageInner,
+          borderTopLeftRadius: flushLeft ? 4 : 10,
+          borderBottomLeftRadius: flushLeft ? 4 : 10,
+          borderTopRightRadius: flushRight ? 4 : 10,
+          borderBottomRightRadius: flushRight ? 4 : 10,
+        };
+
     if (!page) {
       return (
-        <div style={mini ? styles.miniPageShell : styles.pageShell}>
+        <div style={shellStyle}>
           <div style={mini ? styles.miniPageEmpty : styles.pageEmpty}>No page</div>
         </div>
       );
@@ -129,27 +138,20 @@ export default function MagazineMockupPreview() {
       pointerEvents: "none",
     };
 
-    const shellStyle = mini ? styles.miniPageShell : styles.pageShell;
-    const pageStyle = mini
-      ? styles.miniPageInner
-      : {
-          ...styles.pageInner,
-          borderTopLeftRadius: flushLeft ? 10 : 10,
-          borderBottomLeftRadius: flushLeft ? 10 : 10,
-          borderTopRightRadius: flushRight ? 10 : 10,
-          borderBottomRightRadius: flushRight ? 10 : 10,
-        };
-
     return (
       <div style={shellStyle}>
         <div
           style={{
-            ...pageStyle,
+            ...innerStyle,
             background: page.background_color || "#fff",
           }}
         >
           {page.image ? (
-            <img src={page.image} alt={page.image_name || "Page asset"} style={imageStyle} />
+            <img
+              src={page.image}
+              alt={page.image_name || "Page asset"}
+              style={imageStyle}
+            />
           ) : (
             <div style={mini ? styles.miniNoImage : styles.noImageText}>
               No image on this page
@@ -191,11 +193,11 @@ export default function MagazineMockupPreview() {
     <div style={styles.page}>
       <style>{`
         @keyframes blbSlideInRight {
-          from { opacity: 0; transform: translateX(26px) scale(0.985); }
+          from { opacity: 0; transform: translateX(26px) scale(0.99); }
           to { opacity: 1; transform: translateX(0) scale(1); }
         }
         @keyframes blbSlideInLeft {
-          from { opacity: 0; transform: translateX(-26px) scale(0.985); }
+          from { opacity: 0; transform: translateX(-26px) scale(0.99); }
           to { opacity: 1; transform: translateX(0) scale(1); }
         }
       `}</style>
@@ -225,8 +227,8 @@ export default function MagazineMockupPreview() {
             ...styles.stage,
             animation:
               direction === "next"
-                ? "blbSlideInRight 0.25s ease"
-                : "blbSlideInLeft 0.25s ease",
+                ? "blbSlideInRight 0.22s ease"
+                : "blbSlideInLeft 0.22s ease",
           }}
         >
           {currentItem?.type === "cover" ? (
@@ -238,15 +240,18 @@ export default function MagazineMockupPreview() {
               {renderPage(currentItem.left)}
             </div>
           ) : (
-            <div style={styles.seamlessSpread}>
-              <div style={styles.spreadHalf}>
-                {renderPage(currentItem?.left, { flushRight: true })}
-              </div>
+            <div style={styles.trueSpreadWrap}>
+              <div style={styles.trueSpreadShadow} />
+              <div style={styles.trueSpread}>
+                <div style={styles.trueSpreadPageLeft}>
+                  {renderPage(currentItem?.left, { flushRight: true })}
+                </div>
 
-              <div style={styles.centerGutter} />
+                <div style={styles.trueSpreadSeam} />
 
-              <div style={styles.spreadHalf}>
-                {renderPage(currentItem?.right, { flushLeft: true })}
+                <div style={styles.trueSpreadPageRight}>
+                  {renderPage(currentItem?.right, { flushLeft: true })}
+                </div>
               </div>
             </div>
           )}
@@ -333,7 +338,7 @@ const styles = {
     flexWrap: "wrap",
   },
   viewerWrap: {
-    maxWidth: "1520px",
+    maxWidth: "1600px",
     margin: "0 auto",
     padding: "24px 20px 40px",
   },
@@ -352,39 +357,55 @@ const styles = {
     boxShadow: "inset 0 1px 0 rgba(255,255,255,0.03)",
   },
   coverStage: {
-    display: "flex",
-    justifyContent: "center",
-    alignItems: "center",
     minHeight: "680px",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
   },
-  seamlessSpread: {
+  trueSpreadWrap: {
+    minHeight: "680px",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    position: "relative",
+  },
+  trueSpreadShadow: {
+    position: "absolute",
+    width: "980px",
+    maxWidth: "92%",
+    aspectRatio: "17 / 11",
+    background: "rgba(0,0,0,0.35)",
+    filter: "blur(26px)",
+    borderRadius: "24px",
+    transform: "translateY(18px)",
+  },
+  trueSpread: {
+    position: "relative",
     display: "grid",
-    gridTemplateColumns: "1fr 8px 1fr",
-    alignItems: "center",
-    justifyItems: "center",
-    minHeight: "680px",
-    gap: "0px",
+    gridTemplateColumns: "1fr 2px 1fr",
+    alignItems: "stretch",
+    width: "980px",
+    maxWidth: "92%",
+    aspectRatio: "17 / 11",
+    zIndex: 2,
   },
-  spreadHalf: {
-    width: "100%",
+  trueSpreadPageLeft: {
     display: "flex",
-    justifyContent: "center",
-    alignItems: "center",
   },
-  centerGutter: {
-    width: "8px",
-    height: "590px",
-    background: "linear-gradient(to right, #050505, #1b1b1b, #050505)",
-    boxShadow: "inset 0 0 14px rgba(0,0,0,0.7)",
-    borderRadius: "999px",
+  trueSpreadPageRight: {
+    display: "flex",
+  },
+  trueSpreadSeam: {
+    width: "2px",
+    background: "linear-gradient(to right, #0f0f0f, #1e1e1e)",
+    boxShadow: "0 0 12px rgba(0,0,0,0.8)",
+    zIndex: 3,
   },
   pageShell: {
     width: "100%",
-    maxWidth: "470px",
+    maxWidth: "490px",
     aspectRatio: "8.5 / 11",
     display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
   },
   pageEmpty: {
     width: "100%",
@@ -481,7 +502,7 @@ const styles = {
   spreadMiniWrap: {
     display: "grid",
     gridTemplateColumns: "1fr 1fr",
-    gap: "4px",
+    gap: "2px",
     width: "152px",
   },
   miniPageShell: {
