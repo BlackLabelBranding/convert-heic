@@ -1,9 +1,12 @@
 import React from "react";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 
-// NOTE: If your folder on GitHub is named "Components", 
-// change the lowercase "c" below to uppercase "C"
-import Header from "./components/Header";
+/**
+ * VERCEL FIX: 
+ * If the build fails again, look at your GitHub file list.
+ * If the folder starts with a lowercase 'c', change 'Components' below to 'components'.
+ */
+import Header from "./Components/Header";
 
 import Home from "./pages/Home";
 import HeicToJpg from "./pages/HeicToJpg";
