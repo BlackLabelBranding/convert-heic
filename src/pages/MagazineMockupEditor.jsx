@@ -49,6 +49,9 @@ function generateToken(length = 24) {
 function clamp(value, min, max) {
   return Math.min(Math.max(value, min), max);
 }
+<Link to={`/magazine-mockup/${project.id}/preview`} style={styles.primaryLinkButton}>
+  Preview Flipbook
+</Link>
 
 export default function MagazineMockupEditor() {
   const { id } = useParams();
