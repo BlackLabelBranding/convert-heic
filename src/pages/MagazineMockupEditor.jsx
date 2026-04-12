@@ -3,6 +3,44 @@ import { supabase } from "../lib/customSupabaseClient";
 
 const BUCKET = "magazine-mockups";
 
+const SIZE_PRESETS = [
+  {
+    key: "custom",
+    label: "Custom",
+    pageWidth: null,
+    pageHeight: null,
+    dpi: null,
+  },
+  {
+    key: "magazine_full",
+    label: "Magazine Full Page — 2550 × 3300 @ 300 DPI",
+    pageWidth: 2550,
+    pageHeight: 3300,
+    dpi: 300,
+  },
+  {
+    key: "digest",
+    label: "Digest Page — 1650 × 2550 @ 300 DPI",
+    pageWidth: 1650,
+    pageHeight: 2550,
+    dpi: 300,
+  },
+  {
+    key: "square",
+    label: "Square — 2400 × 2400 @ 300 DPI",
+    pageWidth: 2400,
+    pageHeight: 2400,
+    dpi: 300,
+  },
+  {
+    key: "poster_portrait",
+    label: "Tall Portrait — 2160 × 3240 @ 300 DPI",
+    pageWidth: 2160,
+    pageHeight: 3240,
+    dpi: 300,
+  },
+];
+
 function getProjectIdFromUrl() {
   const parts = window.location.pathname.split("/").filter(Boolean);
   const idx = parts.indexOf("magazine-mockup");
@@ -37,6 +75,18 @@ function formatDate(value) {
   }
 }
 
+function getPresetKey(project) {
+  if (!project) return "custom";
+  const found = SIZE_PRESETS.find(
+    (preset) =>
+      preset.key !== "custom" &&
+      preset.pageWidth === Number(project.page_width) &&
+      preset.pageHeight === Number(project.page_height) &&
+      preset.dpi === Number(project.dpi)
+  );
+  return found?.key || "custom";
+}
+
 function dataUrlToBlob(dataUrl) {
   const arr = dataUrl.split(",");
   const mime = arr[0].match(/:(.*?);/)?.[1] || "image/png";
@@ -49,46 +99,86 @@ function dataUrlToBlob(dataUrl) {
   return new Blob([u8arr], { type: mime });
 }
 
-async function splitImageIntoSpread(file) {
-  const dataUrl = await new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result);
-    reader.onerror = () => reject(new Error("Failed to read image file."));
-    reader.readAsDataURL(file);
+async function loadImageFromFileOrBlob(fileOrBlob) {
+  return await new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(fileOrBlob);
+    const img = new Image();
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      resolve(img);
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error("Failed to load image."));
+    };
+    img.src = url;
   });
+}
 
-  const img = await new Promise((resolve, reject) => {
-    const image = new Image();
-    image.onload = () => resolve(image);
-    image.onerror = () => reject(new Error("Failed to load image."));
-    image.src = dataUrl;
-  });
+async function cropImageToDimensions(fileOrBlob, targetWidth, targetHeight) {
+  const img = await loadImageFromFileOrBlob(fileOrBlob);
 
-  const width = img.width;
-  const height = img.height;
-  const halfWidth = Math.floor(width / 2);
-  const rightWidth = width - halfWidth;
+  const srcWidth = img.width;
+  const srcHeight = img.height;
+  const srcRatio = srcWidth / srcHeight;
+  const targetRatio = targetWidth / targetHeight;
+
+  let sx = 0;
+  let sy = 0;
+  let sw = srcWidth;
+  let sh = srcHeight;
+
+  if (srcRatio > targetRatio) {
+    sw = Math.round(srcHeight * targetRatio);
+    sx = Math.round((srcWidth - sw) / 2);
+  } else if (srcRatio < targetRatio) {
+    sh = Math.round(srcWidth / targetRatio);
+    sy = Math.round((srcHeight - sh) / 2);
+  }
+
+  const canvas = document.createElement("canvas");
+  canvas.width = targetWidth;
+  canvas.height = targetHeight;
+
+  const ctx = canvas.getContext("2d");
+  ctx.drawImage(img, sx, sy, sw, sh, 0, 0, targetWidth, targetHeight);
+
+  return dataUrlToBlob(canvas.toDataURL("image/png"));
+}
+
+async function splitPreparedSpreadBlob(spreadBlob, pageWidth, pageHeight) {
+  const img = await loadImageFromFileOrBlob(spreadBlob);
 
   const leftCanvas = document.createElement("canvas");
-  leftCanvas.width = halfWidth;
-  leftCanvas.height = height;
+  leftCanvas.width = pageWidth;
+  leftCanvas.height = pageHeight;
   const leftCtx = leftCanvas.getContext("2d");
-  leftCtx.drawImage(img, 0, 0, halfWidth, height, 0, 0, halfWidth, height);
+  leftCtx.drawImage(
+    img,
+    0,
+    0,
+    pageWidth,
+    pageHeight,
+    0,
+    0,
+    pageWidth,
+    pageHeight
+  );
 
   const rightCanvas = document.createElement("canvas");
-  rightCanvas.width = rightWidth;
-  rightCanvas.height = height;
+  rightCanvas.width = pageWidth;
+  rightCanvas.height = pageHeight;
   const rightCtx = rightCanvas.getContext("2d");
   rightCtx.drawImage(
     img,
-    halfWidth,
+    pageWidth,
     0,
-    rightWidth,
-    height,
+    pageWidth,
+    pageHeight,
     0,
     0,
-    rightWidth,
-    height
+    pageWidth,
+    pageHeight
   );
 
   return {
@@ -148,7 +238,10 @@ async function uploadFileToStorage(projectId, filename, fileOrBlob) {
 
 export default function MagazineMockupEditor() {
   const fileInputRef = useRef(null);
+  const pageCropInputRef = useRef(null);
   const spreadInputRef = useRef(null);
+  const spreadCropInputRef = useRef(null);
+
   const projectId = useMemo(() => getProjectIdFromUrl(), []);
 
   const [project, setProject] = useState(null);
@@ -158,6 +251,7 @@ export default function MagazineMockupEditor() {
   const [message, setMessage] = useState("");
   const [viewMode, setViewMode] = useState("single");
   const [loading, setLoading] = useState(true);
+  const [presetKey, setPresetKey] = useState("custom");
 
   async function loadProject() {
     setLoading(true);
@@ -189,6 +283,7 @@ export default function MagazineMockupEditor() {
 
     setProject(projectData);
     setPages(pageData || []);
+    setPresetKey(getPresetKey(projectData));
     setSelectedPageId((prev) => prev || pageData?.[0]?.id || null);
     setLoading(false);
   }
@@ -282,6 +377,7 @@ export default function MagazineMockupEditor() {
     }
 
     setProject(data);
+    setPresetKey(getPresetKey(data));
     setMessage(nextMessage);
   }
 
@@ -318,6 +414,26 @@ export default function MagazineMockupEditor() {
 
   async function renameProject(value) {
     await updateProject({ title: value }, "Project title updated.");
+  }
+
+  async function applyPreset(nextPresetKey) {
+    setPresetKey(nextPresetKey);
+    if (nextPresetKey === "custom") {
+      setMessage("Custom size mode enabled.");
+      return;
+    }
+
+    const preset = SIZE_PRESETS.find((p) => p.key === nextPresetKey);
+    if (!preset) return;
+
+    await updateProject(
+      {
+        page_width: preset.pageWidth,
+        page_height: preset.pageHeight,
+        dpi: preset.dpi,
+      },
+      `${preset.label} applied.`
+    );
   }
 
   async function addPage() {
@@ -512,12 +628,24 @@ export default function MagazineMockupEditor() {
     if (fileInputRef.current) fileInputRef.current.click();
   }
 
+  function onPageCropClick() {
+    if (pageCropInputRef.current) pageCropInputRef.current.click();
+  }
+
   function onSpreadUploadClick() {
     if (!selectedSpreadOption) {
       setMessage("No valid spread is selected.");
       return;
     }
     if (spreadInputRef.current) spreadInputRef.current.click();
+  }
+
+  function onSpreadCropClick() {
+    if (!selectedSpreadOption) {
+      setMessage("No valid spread is selected.");
+      return;
+    }
+    if (spreadCropInputRef.current) spreadCropInputRef.current.click();
   }
 
   async function handleImageUpload(event) {
@@ -550,14 +678,64 @@ export default function MagazineMockupEditor() {
     }
   }
 
+  async function handlePageCropUpload(event) {
+    const file = event.target.files?.[0];
+    if (!file || !selectedPage || !project) return;
+
+    try {
+      setMessage(`Cropping image to ${project.page_width} × ${project.page_height}...`);
+
+      const croppedBlob = await cropImageToDimensions(
+        file,
+        Number(project.page_width),
+        Number(project.page_height)
+      );
+
+      const uploaded = await uploadFileToStorage(
+        projectId,
+        `${selectedPage.page_number}-${file.name}-page-cropped.png`,
+        croppedBlob
+      );
+
+      await updatePage(
+        selectedPage.id,
+        {
+          image_path: uploaded.path,
+          image_url: uploaded.url,
+          image_name: `${file.name} (page crop)`,
+          image_fit: "stretch",
+          image_scale: 1,
+          image_x: 0,
+          image_y: 0,
+        },
+        `Image cropped to page size ${project.page_width} × ${project.page_height}.`
+      );
+    } catch (error) {
+      console.error("handlePageCropUpload error:", error);
+      setMessage(error.message || "Page crop failed.");
+    } finally {
+      event.target.value = "";
+    }
+  }
+
   async function handleSpreadUpload(event) {
     const file = event.target.files?.[0];
-    if (!file || !selectedSpreadOption) return;
+    if (!file || !selectedSpreadOption || !project) return;
 
     try {
       setMessage(`Uploading spread for pages ${selectedSpreadOption.leftPageNumber}-${selectedSpreadOption.rightPageNumber}...`);
 
-      const { leftBlob, rightBlob } = await splitImageIntoSpread(file);
+      const spreadBlob = await cropImageToDimensions(
+        file,
+        Number(project.page_width) * 2,
+        Number(project.page_height)
+      );
+
+      const { leftBlob, rightBlob } = await splitPreparedSpreadBlob(
+        spreadBlob,
+        Number(project.page_width),
+        Number(project.page_height)
+      );
 
       const leftUpload = await uploadFileToStorage(
         projectId,
@@ -606,6 +784,81 @@ export default function MagazineMockupEditor() {
     } catch (error) {
       console.error("handleSpreadUpload error:", error);
       setMessage(error.message || "Failed to split spread image.");
+    } finally {
+      event.target.value = "";
+    }
+  }
+
+  async function handleSpreadCropUpload(event) {
+    const file = event.target.files?.[0];
+    if (!file || !selectedSpreadOption || !project) return;
+
+    try {
+      setMessage(
+        `Cropping image to spread size ${project.page_width * 2} × ${project.page_height} for pages ${selectedSpreadOption.leftPageNumber}-${selectedSpreadOption.rightPageNumber}...`
+      );
+
+      const croppedSpreadBlob = await cropImageToDimensions(
+        file,
+        Number(project.page_width) * 2,
+        Number(project.page_height)
+      );
+
+      const { leftBlob, rightBlob } = await splitPreparedSpreadBlob(
+        croppedSpreadBlob,
+        Number(project.page_width),
+        Number(project.page_height)
+      );
+
+      const leftUpload = await uploadFileToStorage(
+        projectId,
+        `${selectedSpreadOption.leftPageNumber}-${file.name}-spread-crop-left.png`,
+        leftBlob
+      );
+
+      const rightUpload = await uploadFileToStorage(
+        projectId,
+        `${selectedSpreadOption.rightPageNumber}-${file.name}-spread-crop-right.png`,
+        rightBlob
+      );
+
+      await supabase
+        .from("magazine_pages")
+        .update({
+          image_path: leftUpload.path,
+          image_url: leftUpload.url,
+          image_name: `${file.name} (spread crop left)`,
+          image_fit: "stretch",
+          image_scale: 1,
+          image_x: 0,
+          image_y: 0,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", selectedSpreadOption.leftId);
+
+      await supabase
+        .from("magazine_pages")
+        .update({
+          image_path: rightUpload.path,
+          image_url: rightUpload.url,
+          image_name: `${file.name} (spread crop right)`,
+          image_fit: "stretch",
+          image_scale: 1,
+          image_x: 0,
+          image_y: 0,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", selectedSpreadOption.rightId);
+
+      await loadProject();
+      setSelectedPageId(selectedSpreadOption.leftId);
+      setViewMode("spread");
+      setMessage(
+        `Image cropped to spread size ${project.page_width * 2} × ${project.page_height} and applied to pages ${selectedSpreadOption.leftPageNumber}-${selectedSpreadOption.rightPageNumber}.`
+      );
+    } catch (error) {
+      console.error("handleSpreadCropUpload error:", error);
+      setMessage(error.message || "Spread crop failed.");
     } finally {
       event.target.value = "";
     }
@@ -743,7 +996,11 @@ export default function MagazineMockupEditor() {
           }}
         >
           {page.image_url ? (
-            <img src={page.image_url} alt={page.image_name || "Page asset"} style={getImageStyle(page)} />
+            <img
+              src={page.image_url}
+              alt={page.image_name || "Page asset"}
+              style={getImageStyle(page)}
+            />
           ) : (
             <div style={styles.noImageText}>No image on this page</div>
           )}
@@ -826,6 +1083,21 @@ export default function MagazineMockupEditor() {
             </div>
 
             <div style={styles.field}>
+              <label style={styles.label}>Size Preset</label>
+              <select
+                style={styles.input}
+                value={presetKey}
+                onChange={(e) => applyPreset(e.target.value)}
+              >
+                {SIZE_PRESETS.map((preset) => (
+                  <option key={preset.key} value={preset.key}>
+                    {preset.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div style={styles.field}>
               <label style={styles.label}>Page Width</label>
               <input
                 style={styles.input}
@@ -871,6 +1143,7 @@ export default function MagazineMockupEditor() {
             </div>
 
             <div style={styles.metaBox}>
+              <div style={styles.metaLine}>Spread size: {project.page_width * 2} × {project.page_height}</div>
               <div style={styles.metaLine}>Created: {formatDate(project.created_at)}</div>
               <div style={styles.metaLine}>Updated: {formatDate(project.updated_at)}</div>
             </div>
@@ -995,10 +1268,19 @@ export default function MagazineMockupEditor() {
               </div>
 
               <div style={styles.spreadInfoBox}>
+                <div style={styles.spreadInfoTitle}>Crop Tools</div>
+                <div style={styles.spreadInfoText}>
+                  Page crop target: {project.page_width} × {project.page_height}
+                  <br />
+                  Spread crop target: {project.page_width * 2} × {project.page_height}
+                </div>
+              </div>
+
+              <div style={styles.spreadInfoBox}>
                 <div style={styles.spreadInfoTitle}>Spread Upload Target</div>
                 <div style={styles.spreadInfoText}>
                   {selectedSpreadOption
-                    ? `This upload will apply to ${selectedSpreadOption.label}. Use a true spread image, ideally ${project.page_width * 2} × ${project.page_height}.`
+                    ? `This upload will apply to ${selectedSpreadOption.label}.`
                     : "No valid spread is available."}
                 </div>
 
@@ -1023,12 +1305,24 @@ export default function MagazineMockupEditor() {
                   Upload / Replace Image
                 </button>
 
+                <button style={styles.secondaryButton} onClick={onPageCropClick}>
+                  Auto Crop To Page Size
+                </button>
+
                 <button
                   style={styles.secondaryButton}
                   onClick={onSpreadUploadClick}
                   disabled={!selectedSpreadOption}
                 >
                   Upload One Image For {selectedSpreadOption?.label || "Spread"}
+                </button>
+
+                <button
+                  style={styles.secondaryButton}
+                  onClick={onSpreadCropClick}
+                  disabled={!selectedSpreadOption}
+                >
+                  Auto Crop To Spread Size
                 </button>
 
                 <button style={styles.secondaryButton} onClick={clearImage}>
@@ -1045,10 +1339,26 @@ export default function MagazineMockupEditor() {
               />
 
               <input
+                ref={pageCropInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handlePageCropUpload}
+                style={{ display: "none" }}
+              />
+
+              <input
                 ref={spreadInputRef}
                 type="file"
                 accept="image/*"
                 onChange={handleSpreadUpload}
+                style={{ display: "none" }}
+              />
+
+              <input
+                ref={spreadCropInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handleSpreadCropUpload}
                 style={{ display: "none" }}
               />
 
