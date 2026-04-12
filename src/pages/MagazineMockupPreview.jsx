@@ -14,11 +14,56 @@ function loadProjects() {
   }
 }
 
+function buildViewerItems(pages) {
+  if (!pages.length) return [];
+
+  const sorted = [...pages].sort((a, b) => a.page_number - b.page_number);
+  const items = [];
+
+  if (sorted.length >= 1) {
+    items.push({
+      type: "cover",
+      left: null,
+      right: sorted[0],
+      label: "Cover",
+    });
+  }
+
+  let i = 1;
+  while (i < sorted.length) {
+    const left = sorted[i] || null;
+    const right = sorted[i + 1] || null;
+
+    if (!left && !right) break;
+
+    if (left && right) {
+      items.push({
+        type: "spread",
+        left,
+        right,
+        label: `${left.page_number}-${right.page_number}`,
+      });
+      i += 2;
+    } else {
+      items.push({
+        type: "single",
+        left,
+        right: null,
+        label: `${left.page_number}`,
+      });
+      i += 1;
+    }
+  }
+
+  return items;
+}
+
 export default function MagazineMockupPreview() {
   const { id } = useParams();
+
   const [project, setProject] = useState(null);
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [viewMode, setViewMode] = useState("spread");
+  const [direction, setDirection] = useState("next");
 
   useEffect(() => {
     const allProjects = loadProjects();
@@ -31,35 +76,31 @@ export default function MagazineMockupPreview() {
     return [...project.pages].sort((a, b) => a.page_number - b.page_number);
   }, [project]);
 
-  const spreads = useMemo(() => {
-    const pairs = [];
-    for (let i = 0; i < sortedPages.length; i += 2) {
-      pairs.push({
-        left: sortedPages[i] || null,
-        right: sortedPages[i + 1] || null,
-      });
-    }
-    return pairs;
+  const viewerItems = useMemo(() => {
+    return buildViewerItems(sortedPages);
   }, [sortedPages]);
 
-  const currentSpread = spreads[currentIndex] || { left: null, right: null };
-  const currentSingle = sortedPages[currentIndex] || null;
+  const currentItem = viewerItems[currentIndex] || null;
 
   function next() {
-    if (viewMode === "spread") {
-      setCurrentIndex((prev) => Math.min(prev + 1, spreads.length - 1));
-    } else {
-      setCurrentIndex((prev) => Math.min(prev + 1, sortedPages.length - 1));
-    }
+    setDirection("next");
+    setCurrentIndex((prev) => Math.min(prev + 1, viewerItems.length - 1));
   }
 
   function prev() {
+    setDirection("prev");
     setCurrentIndex((prev) => Math.max(prev - 1, 0));
   }
 
-  function renderPage(page, mini = false) {
+  function renderPage(page, opts = {}) {
+    const { mini = false, flushLeft = false, flushRight = false } = opts;
+
     if (!page) {
-      return <div style={mini ? styles.miniPage : styles.pageCanvasEmpty}>No page</div>;
+      return (
+        <div style={mini ? styles.miniPageShell : styles.pageShell}>
+          <div style={mini ? styles.miniPageEmpty : styles.pageEmpty}>No page</div>
+        </div>
+      );
     }
 
     const fit = page.image_fit || "cover";
@@ -88,20 +129,36 @@ export default function MagazineMockupPreview() {
       pointerEvents: "none",
     };
 
+    const shellStyle = mini ? styles.miniPageShell : styles.pageShell;
+    const pageStyle = mini
+      ? styles.miniPageInner
+      : {
+          ...styles.pageInner,
+          borderTopLeftRadius: flushLeft ? 10 : 10,
+          borderBottomLeftRadius: flushLeft ? 10 : 10,
+          borderTopRightRadius: flushRight ? 10 : 10,
+          borderBottomRightRadius: flushRight ? 10 : 10,
+        };
+
     return (
-      <div style={mini ? styles.miniPageWrap : styles.pageCanvas}>
+      <div style={shellStyle}>
         <div
           style={{
-            ...styles.pageInner,
+            ...pageStyle,
             background: page.background_color || "#fff",
           }}
         >
           {page.image ? (
             <img src={page.image} alt={page.image_name || "Page asset"} style={imageStyle} />
           ) : (
-            <div style={styles.noImageText}>No image on this page</div>
+            <div style={mini ? styles.miniNoImage : styles.noImageText}>
+              No image on this page
+            </div>
           )}
-          <div style={styles.pageNumberBadge}>Page {page.page_number}</div>
+
+          {!mini ? (
+            <div style={styles.pageNumberBadge}>Page {page.page_number}</div>
+          ) : null}
         </div>
       </div>
     );
@@ -118,7 +175,7 @@ export default function MagazineMockupPreview() {
           <div style={styles.notFoundCard}>
             <h1 style={styles.notFoundTitle}>Preview not found</h1>
             <p style={styles.notFoundText}>This project could not be loaded.</p>
-            <Link to="/magazine-mockup" style={styles.homeLink}>
+            <Link to="/magazine-mockup" style={styles.primaryLink}>
               Back to Dashboard
             </Link>
           </div>
@@ -127,11 +184,22 @@ export default function MagazineMockupPreview() {
     );
   }
 
-  const totalCount = viewMode === "spread" ? spreads.length : sortedPages.length;
-  const currentDisplay = currentIndex + 1;
+  const totalCount = viewerItems.length;
+  const displayCount = currentIndex + 1;
 
   return (
     <div style={styles.page}>
+      <style>{`
+        @keyframes blbSlideInRight {
+          from { opacity: 0; transform: translateX(26px) scale(0.985); }
+          to { opacity: 1; transform: translateX(0) scale(1); }
+        }
+        @keyframes blbSlideInLeft {
+          from { opacity: 0; transform: translateX(-26px) scale(0.985); }
+          to { opacity: 1; transform: translateX(0) scale(1); }
+        }
+      `}</style>
+
       <div style={styles.topBar}>
         <div>
           <div style={styles.brand}>Black Label Preview</div>
@@ -142,54 +210,57 @@ export default function MagazineMockupPreview() {
           <Link to={`/magazine-mockup/${project.id}`} style={styles.controlLink}>
             Back to Editor
           </Link>
-
-          <button
-            style={{
-              ...styles.controlButton,
-              ...(viewMode === "single" ? styles.activeButton : {}),
-            }}
-            onClick={() => {
-              setViewMode("single");
-              setCurrentIndex(0);
-            }}
-          >
-            Single
-          </button>
-
-          <button
-            style={{
-              ...styles.controlButton,
-              ...(viewMode === "spread" ? styles.activeButton : {}),
-            }}
-            onClick={() => {
-              setViewMode("spread");
-              setCurrentIndex(0);
-            }}
-          >
-            Spread
-          </button>
         </div>
       </div>
 
       <div style={styles.viewerWrap}>
         <div style={styles.counter}>
-          {currentDisplay} / {totalCount}
+          {displayCount} / {totalCount}
+          {currentItem?.label ? ` • ${currentItem.label}` : ""}
         </div>
 
-        {viewMode === "spread" ? (
-          <div style={styles.stageSpread}>
-            {renderPage(currentSpread.left)}
-            <div style={styles.spineShadow} />
-            {renderPage(currentSpread.right)}
-          </div>
-        ) : (
-          <div style={styles.stageSingle}>{renderPage(currentSingle)}</div>
-        )}
+        <div
+          key={`${currentIndex}-${direction}`}
+          style={{
+            ...styles.stage,
+            animation:
+              direction === "next"
+                ? "blbSlideInRight 0.25s ease"
+                : "blbSlideInLeft 0.25s ease",
+          }}
+        >
+          {currentItem?.type === "cover" ? (
+            <div style={styles.coverStage}>
+              {renderPage(currentItem.right)}
+            </div>
+          ) : currentItem?.type === "single" ? (
+            <div style={styles.coverStage}>
+              {renderPage(currentItem.left)}
+            </div>
+          ) : (
+            <div style={styles.seamlessSpread}>
+              <div style={styles.spreadHalf}>
+                {renderPage(currentItem?.left, { flushRight: true })}
+              </div>
+
+              <div style={styles.centerGutter} />
+
+              <div style={styles.spreadHalf}>
+                {renderPage(currentItem?.right, { flushLeft: true })}
+              </div>
+            </div>
+          )}
+        </div>
 
         <div style={styles.controls}>
-          <button style={styles.controlButton} onClick={prev} disabled={currentIndex <= 0}>
+          <button
+            style={styles.controlButton}
+            onClick={prev}
+            disabled={currentIndex <= 0}
+          >
             Previous
           </button>
+
           <button
             style={styles.controlButton}
             onClick={next}
@@ -200,23 +271,25 @@ export default function MagazineMockupPreview() {
         </div>
 
         <div style={styles.thumbRow}>
-          {(viewMode === "spread" ? spreads : sortedPages).map((item, index) => (
+          {viewerItems.map((item, index) => (
             <button
-              key={viewMode === "spread" ? `spread-${index}` : item.id}
+              key={`viewer-item-${index}`}
+              onClick={() => setCurrentIndex(index)}
               style={{
                 ...styles.thumbButton,
                 ...(index === currentIndex ? styles.thumbButtonActive : {}),
               }}
-              onClick={() => setCurrentIndex(index)}
             >
-              {viewMode === "spread" ? (
+              {item.type === "spread" ? (
                 <div style={styles.spreadMiniWrap}>
-                  {renderPage(item.left, true)}
-                  {renderPage(item.right, true)}
+                  {renderPage(item.left, { mini: true })}
+                  {renderPage(item.right, { mini: true })}
                 </div>
               ) : (
-                renderPage(item, true)
+                renderPage(item.right || item.left, { mini: true })
               )}
+
+              <div style={styles.thumbLabel}>{item.label}</div>
             </button>
           ))}
         </div>
@@ -260,7 +333,7 @@ const styles = {
     flexWrap: "wrap",
   },
   viewerWrap: {
-    maxWidth: "1500px",
+    maxWidth: "1520px",
     margin: "0 auto",
     padding: "24px 20px 40px",
   },
@@ -270,48 +343,53 @@ const styles = {
     marginBottom: "14px",
     textAlign: "center",
   },
-  stageSingle: {
-    display: "flex",
-    justifyContent: "center",
-    alignItems: "center",
-    minHeight: "700px",
-    padding: "30px",
+  stage: {
+    minHeight: "760px",
+    padding: "28px",
     background: "radial-gradient(circle at center, #111 0%, #060606 100%)",
     borderRadius: "24px",
     border: "1px solid #161616",
+    boxShadow: "inset 0 1px 0 rgba(255,255,255,0.03)",
   },
-  stageSpread: {
+  coverStage: {
+    display: "flex",
+    justifyContent: "center",
+    alignItems: "center",
+    minHeight: "680px",
+  },
+  seamlessSpread: {
     display: "grid",
-    gridTemplateColumns: "1fr 18px 1fr",
+    gridTemplateColumns: "1fr 8px 1fr",
     alignItems: "center",
     justifyItems: "center",
-    minHeight: "700px",
-    padding: "30px",
-    background: "radial-gradient(circle at center, #111 0%, #060606 100%)",
-    borderRadius: "24px",
-    border: "1px solid #161616",
-    gap: "14px",
+    minHeight: "680px",
+    gap: "0px",
   },
-  spineShadow: {
-    width: "18px",
-    height: "560px",
-    borderRadius: "12px",
-    background: "linear-gradient(to right, #030303, #1d1d1d, #030303)",
-    boxShadow: "inset 0 0 12px rgba(0,0,0,0.6)",
-  },
-  pageCanvas: {
+  spreadHalf: {
     width: "100%",
-    maxWidth: "460px",
+    display: "flex",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  centerGutter: {
+    width: "8px",
+    height: "590px",
+    background: "linear-gradient(to right, #050505, #1b1b1b, #050505)",
+    boxShadow: "inset 0 0 14px rgba(0,0,0,0.7)",
+    borderRadius: "999px",
+  },
+  pageShell: {
+    width: "100%",
+    maxWidth: "470px",
     aspectRatio: "8.5 / 11",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
   },
-  pageCanvasEmpty: {
+  pageEmpty: {
     width: "100%",
-    maxWidth: "460px",
-    aspectRatio: "8.5 / 11",
-    borderRadius: "14px",
+    height: "100%",
+    borderRadius: "12px",
     border: "1px dashed #333",
     display: "flex",
     alignItems: "center",
@@ -336,7 +414,8 @@ const styles = {
     justifyContent: "center",
     color: "#666",
     fontSize: "14px",
-    background: "repeating-linear-gradient(45deg, #fafafa, #fafafa 12px, #f2f2f2 12px, #f2f2f2 24px)",
+    background:
+      "repeating-linear-gradient(45deg, #fafafa, #fafafa 12px, #f2f2f2 12px, #f2f2f2 24px)",
   },
   pageNumberBadge: {
     position: "absolute",
@@ -372,10 +451,6 @@ const styles = {
     textDecoration: "none",
     fontSize: "14px",
   },
-  activeButton: {
-    border: "1px solid #39ff14",
-    boxShadow: "0 0 0 1px rgba(57,255,20,0.2) inset",
-  },
   thumbRow: {
     marginTop: "22px",
     display: "flex",
@@ -391,28 +466,48 @@ const styles = {
     padding: "8px",
     cursor: "pointer",
     minWidth: "120px",
+    color: "#fff",
   },
   thumbButtonActive: {
     border: "1px solid #39ff14",
+    boxShadow: "0 0 0 1px rgba(57,255,20,0.15) inset",
+  },
+  thumbLabel: {
+    marginTop: "8px",
+    fontSize: "12px",
+    color: "#b3b3b3",
+    textAlign: "center",
   },
   spreadMiniWrap: {
     display: "grid",
     gridTemplateColumns: "1fr 1fr",
-    gap: "6px",
-    width: "150px",
+    gap: "4px",
+    width: "152px",
   },
-  miniPageWrap: {
+  miniPageShell: {
     width: "100%",
     aspectRatio: "8.5 / 11",
   },
-  miniPage: {
+  miniPageEmpty: {
     width: "100%",
-    aspectRatio: "8.5 / 11",
+    height: "100%",
+    borderRadius: "8px",
+    border: "1px dashed #333",
+    background: "#111",
+  },
+  miniPageInner: {
+    position: "relative",
+    width: "100%",
+    height: "100%",
     borderRadius: "8px",
     overflow: "hidden",
-    background: "#fff",
-    position: "relative",
     border: "1px solid #ddd",
+  },
+  miniNoImage: {
+    position: "absolute",
+    inset: 0,
+    background:
+      "repeating-linear-gradient(45deg, #fafafa, #fafafa 12px, #f2f2f2 12px, #f2f2f2 24px)",
   },
   centerWrap: {
     maxWidth: "900px",
@@ -434,7 +529,7 @@ const styles = {
     color: "#b3b3b3",
     marginBottom: "20px",
   },
-  homeLink: {
+  primaryLink: {
     display: "inline-block",
     padding: "12px 14px",
     borderRadius: "12px",
